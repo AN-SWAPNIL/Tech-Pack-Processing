@@ -1,2 +1,9 @@
 # docs
 docs/*
+
+# node modules
+package-lock.json
+node_modules
+
+# ENV files
+.env
