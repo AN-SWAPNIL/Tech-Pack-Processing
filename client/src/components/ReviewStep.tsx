@@ -1,9 +1,15 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Button } from './ui/button';
-import { Badge } from './ui/badge';
-import { Separator } from './ui/separator';
-import { Lock, CheckCircle, Edit, FileText, AlertTriangle } from 'lucide-react';
+import React, { useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "./ui/card";
+import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
+import { Separator } from "./ui/separator";
+import { Lock, CheckCircle, Edit, FileText, AlertTriangle } from "lucide-react";
 
 interface ReviewData {
   techPack: {
@@ -12,6 +18,7 @@ interface ReviewData {
     fabricType: string;
     garmentType: string;
     gender: string;
+    description: string;
   };
   hsCode: {
     code: string;
@@ -37,29 +44,30 @@ export function ReviewStep({ onBack, onEdit }: ReviewStepProps) {
   // Mock review data
   const reviewData: ReviewData = {
     techPack: {
-      filename: 'Tech_Pack_Mens_Shirt_v2.pdf',
-      material: '100% Cotton',
-      fabricType: 'Woven',
-      garmentType: 'Shirt',
-      gender: 'Men\'s'
+      filename: "Tech_Pack_Mens_Shirt_v2.pdf",
+      material: "100% Cotton",
+      fabricType: "Woven",
+      garmentType: "Shirt",
+      gender: "Men's",
+      description: "Men's shirt, cotton woven construction",
     },
     hsCode: {
-      code: '62052000',
-      description: 'Men\'s cotton shirts (woven)',
-      confidence: 0.92
+      code: "62052000",
+      description: "Men's cotton shirts (woven)",
+      confidence: 0.92,
     },
     compliance: {
-      destination: 'European Union',
-      office: 'Chattogram Customs House',
-      port: 'Chattogram Port'
+      destination: "European Union",
+      office: "Chattogram Customs House",
+      port: "Chattogram Port",
     },
     documents: [
-      'Proforma Invoice',
-      'Commercial Invoice',
-      'Packing List',
-      'ASYCUDA Export',
-      'EXP Registration'
-    ]
+      "Proforma Invoice",
+      "Commercial Invoice",
+      "Packing List",
+      "ASYCUDA Export",
+      "EXP Registration",
+    ],
   };
 
   const handleLock = () => {
@@ -75,9 +83,11 @@ export function ReviewStep({ onBack, onEdit }: ReviewStepProps) {
       <div className="flex items-center justify-between">
         <div>
           <h2>Step 5: Review & Lock</h2>
-          <p className="text-muted-foreground">Final review before locking the export documentation</p>
+          <p className="text-muted-foreground">
+            Final review before locking the export documentation
+          </p>
         </div>
-        
+
         {isLocked ? (
           <Badge variant="secondary" className="bg-green-100 text-green-700">
             <Lock className="h-4 w-4 mr-1" />
@@ -107,18 +117,29 @@ export function ReviewStep({ onBack, onEdit }: ReviewStepProps) {
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
+            <div className="mb-4">
+              <label className="text-sm text-muted-foreground">
+                Description
+              </label>
+              <p className="text-sm">{reviewData.techPack.description}</p>
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <label className="text-sm text-muted-foreground">File</label>
                 <p className="text-sm">{reviewData.techPack.filename}</p>
               </div>
               <div>
-                <label className="text-sm text-muted-foreground">Material</label>
+                <label className="text-sm text-muted-foreground">
+                  Material
+                </label>
                 <p className="text-sm">{reviewData.techPack.material}</p>
               </div>
               <div>
                 <label className="text-sm text-muted-foreground">Type</label>
-                <p className="text-sm">{reviewData.techPack.fabricType} {reviewData.techPack.garmentType}</p>
+                <p className="text-sm">
+                  {reviewData.techPack.fabricType}{" "}
+                  {reviewData.techPack.garmentType}
+                </p>
               </div>
               <div>
                 <label className="text-sm text-muted-foreground">Gender</label>
@@ -149,7 +170,8 @@ export function ReviewStep({ onBack, onEdit }: ReviewStepProps) {
                 <div className="flex items-center gap-2 mt-1">
                   <CheckCircle className="h-4 w-4 text-green-500" />
                   <span className="text-sm text-muted-foreground">
-                    {(reviewData.hsCode.confidence * 100).toFixed(0)}% confidence
+                    {(reviewData.hsCode.confidence * 100).toFixed(0)}%
+                    confidence
                   </span>
                 </div>
               </div>
@@ -171,15 +193,21 @@ export function ReviewStep({ onBack, onEdit }: ReviewStepProps) {
           <CardContent className="space-y-3">
             <div className="grid md:grid-cols-3 gap-4">
               <div>
-                <label className="text-sm text-muted-foreground">Destination</label>
+                <label className="text-sm text-muted-foreground">
+                  Destination
+                </label>
                 <p className="text-sm">{reviewData.compliance.destination}</p>
               </div>
               <div>
-                <label className="text-sm text-muted-foreground">Customs Office</label>
+                <label className="text-sm text-muted-foreground">
+                  Customs Office
+                </label>
                 <p className="text-sm">{reviewData.compliance.office}</p>
               </div>
               <div>
-                <label className="text-sm text-muted-foreground">Export Port</label>
+                <label className="text-sm text-muted-foreground">
+                  Export Port
+                </label>
                 <p className="text-sm">{reviewData.compliance.port}</p>
               </div>
             </div>
@@ -200,7 +228,10 @@ export function ReviewStep({ onBack, onEdit }: ReviewStepProps) {
           <CardContent>
             <div className="grid md:grid-cols-2 gap-2">
               {reviewData.documents.map((doc, idx) => (
-                <div key={idx} className="flex items-center gap-2 p-2 rounded-lg bg-muted/30">
+                <div
+                  key={idx}
+                  className="flex items-center gap-2 p-2 rounded-lg bg-muted/30"
+                >
                   <CheckCircle className="h-4 w-4 text-green-500" />
                   <span className="text-sm">{doc}</span>
                 </div>
@@ -217,8 +248,9 @@ export function ReviewStep({ onBack, onEdit }: ReviewStepProps) {
                 <div>
                   <h3 className="text-orange-800">Ready to Lock</h3>
                   <p className="text-sm text-orange-600 mt-1">
-                    Once locked, you won't be able to edit the configuration or regenerate documents. 
-                    Make sure all information is correct before proceeding.
+                    Once locked, you won't be able to edit the configuration or
+                    regenerate documents. Make sure all information is correct
+                    before proceeding.
                   </p>
                 </div>
               </div>
@@ -233,7 +265,7 @@ export function ReviewStep({ onBack, onEdit }: ReviewStepProps) {
         <Button variant="outline" onClick={onBack} disabled={isLocked}>
           Back
         </Button>
-        
+
         {!isLocked ? (
           <Button onClick={handleLock} className="flex-1">
             <Lock className="h-4 w-4 mr-2" />

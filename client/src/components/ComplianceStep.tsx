@@ -1,19 +1,30 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Button } from './ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Badge } from './ui/badge';
-import { CheckCircle, AlertCircle, MapPin, FileText, Building } from 'lucide-react';
-
-interface ComplianceData {
-  destination: string;
-  office: string;
-  port: string;
-  udLcNumber?: string;
-  btbLcNumber?: string;
-}
+import React, { useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "./ui/card";
+import { Button } from "./ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Badge } from "./ui/badge";
+import {
+  CheckCircle,
+  AlertCircle,
+  MapPin,
+  FileText,
+  Building,
+} from "lucide-react";
+import type { ComplianceData } from "../types";
 
 interface ComplianceStepProps {
   onNext: (data: ComplianceData) => void;
@@ -21,54 +32,59 @@ interface ComplianceStepProps {
 }
 
 export function ComplianceStep({ onNext, onBack }: ComplianceStepProps) {
-  const [destination, setDestination] = useState<string>('');
-  const [office, setOffice] = useState<string>('');
-  const [port, setPort] = useState<string>('');
-  const [udLcNumber, setUdLcNumber] = useState<string>('');
-  const [btbLcNumber, setBtbLcNumber] = useState<string>('');
+  const [destination, setDestination] = useState<string>("");
+  const [office, setOffice] = useState<string>("");
+  const [port, setPort] = useState<string>("");
+  const [udLcNumber, setUdLcNumber] = useState<string>("");
+  const [btbLcNumber, setBtbLcNumber] = useState<string>("");
   const [isBondedUser] = useState(true); // Mock bonded user status
 
   const destinations = [
-    { value: 'EU', label: 'European Union', dutyRate: '12%' },
-    { value: 'US', label: 'United States', dutyRate: '16.5%' },
-    { value: 'UK', label: 'United Kingdom', dutyRate: '12%' }
+    { value: "EU", label: "European Union", dutyRate: "12%" },
+    { value: "US", label: "United States", dutyRate: "16.5%" },
+    { value: "UK", label: "United Kingdom", dutyRate: "12%" },
   ];
 
   const offices = [
-    'Chattogram Customs House',
-    'DEPZ Customs Office',
-    'Benapole Land Port',
-    'Dhaka ICD',
-    'Mongla Port'
+    "Chattogram Customs House",
+    "DEPZ Customs Office",
+    "Benapole Land Port",
+    "Dhaka ICD",
+    "Mongla Port",
   ];
 
   const ports = [
-    'Chattogram Port',
-    'Mongla Port',
-    'Benapole Land Port',
-    'Dhaka Airport',
-    'Sylhet Airport'
+    "Chattogram Port",
+    "Mongla Port",
+    "Benapole Land Port",
+    "Dhaka Airport",
+    "Sylhet Airport",
   ];
 
   const getDocumentChecklist = (dest: string) => {
     const baseDocuments = [
-      'Commercial Invoice',
-      'Packing List',
-      'Bill of Lading/Airway Bill',
-      'Certificate of Origin'
+      "Commercial Invoice",
+      "Packing List",
+      "Bill of Lading/Airway Bill",
+      "Certificate of Origin",
     ];
 
     const destinationSpecific = {
-      EU: ['EUR.1 Movement Certificate', 'REACH Compliance Certificate'],
-      US: ['Textile Declaration', 'CBP Form 3461'],
-      UK: ['UK Conformity Assessment', 'UKCA Marking']
+      EU: ["EUR.1 Movement Certificate", "REACH Compliance Certificate"],
+      US: ["Textile Declaration", "CBP Form 3461"],
+      UK: ["UK Conformity Assessment", "UKCA Marking"],
     };
 
-    return [...baseDocuments, ...(destinationSpecific[dest as keyof typeof destinationSpecific] || [])];
+    return [
+      ...baseDocuments,
+      ...(destinationSpecific[dest as keyof typeof destinationSpecific] || []),
+    ];
   };
 
-  const selectedDestination = destinations.find(d => d.value === destination);
-  const documentChecklist = destination ? getDocumentChecklist(destination) : [];
+  const selectedDestination = destinations.find((d) => d.value === destination);
+  const documentChecklist = destination
+    ? getDocumentChecklist(destination)
+    : [];
 
   const isFormValid = destination && office && port;
 
@@ -79,7 +95,7 @@ export function ComplianceStep({ onNext, onBack }: ComplianceStepProps) {
         office,
         port,
         udLcNumber: udLcNumber || undefined,
-        btbLcNumber: btbLcNumber || undefined
+        btbLcNumber: btbLcNumber || undefined,
       });
     }
   };
@@ -88,7 +104,9 @@ export function ComplianceStep({ onNext, onBack }: ComplianceStepProps) {
     <div className="space-y-6">
       <div>
         <h2>Step 3: Compliance Check</h2>
-        <p className="text-muted-foreground">Configure destination and compliance requirements</p>
+        <p className="text-muted-foreground">
+          Configure destination and compliance requirements
+        </p>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
@@ -98,7 +116,9 @@ export function ComplianceStep({ onNext, onBack }: ComplianceStepProps) {
               <MapPin className="h-5 w-5" />
               Destination Selection
             </CardTitle>
-            <CardDescription>Select your export destination for duty calculations</CardDescription>
+            <CardDescription>
+              Select your export destination for duty calculations
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -129,7 +149,8 @@ export function ComplianceStep({ onNext, onBack }: ComplianceStepProps) {
                   <span className="text-sm">Duty Context</span>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Standard duty rate for textiles: {selectedDestination.dutyRate}
+                  Standard duty rate for textiles:{" "}
+                  {selectedDestination.dutyRate}
                 </p>
               </div>
             )}
@@ -142,7 +163,9 @@ export function ComplianceStep({ onNext, onBack }: ComplianceStepProps) {
               <Building className="h-5 w-5" />
               ASYCUDA Configuration
             </CardTitle>
-            <CardDescription>Select customs office and port for processing</CardDescription>
+            <CardDescription>
+              Select customs office and port for processing
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -185,7 +208,9 @@ export function ComplianceStep({ onNext, onBack }: ComplianceStepProps) {
           <CardHeader>
             <CardTitle>UD/BTB LC Information</CardTitle>
             <CardDescription>
-              <Badge variant="secondary" className="mr-2">BKMEA +1</Badge>
+              <Badge variant="secondary" className="mr-2">
+                BKMEA +1
+              </Badge>
               Auto-pull for bonded users
             </CardDescription>
           </CardHeader>
@@ -219,12 +244,17 @@ export function ComplianceStep({ onNext, onBack }: ComplianceStepProps) {
               <FileText className="h-5 w-5" />
               Document Checklist
             </CardTitle>
-            <CardDescription>Required documents for {selectedDestination?.label}</CardDescription>
+            <CardDescription>
+              Required documents for {selectedDestination?.label}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid md:grid-cols-2 gap-2">
               {documentChecklist.map((doc, idx) => (
-                <div key={idx} className="flex items-center gap-2 p-2 rounded-lg bg-muted/30">
+                <div
+                  key={idx}
+                  className="flex items-center gap-2 p-2 rounded-lg bg-muted/30"
+                >
                   <CheckCircle className="h-4 w-4 text-green-500" />
                   <span className="text-sm">{doc}</span>
                 </div>
@@ -238,11 +268,7 @@ export function ComplianceStep({ onNext, onBack }: ComplianceStepProps) {
         <Button variant="outline" onClick={onBack}>
           Back
         </Button>
-        <Button 
-          onClick={handleNext} 
-          disabled={!isFormValid}
-          className="flex-1"
-        >
+        <Button onClick={handleNext} disabled={!isFormValid} className="flex-1">
           Continue to Document Generation
         </Button>
       </div>

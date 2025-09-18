@@ -1,26 +1,16 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Button } from './ui/button';
-import { Badge } from './ui/badge';
-import { Progress } from './ui/progress';
-import { CheckCircle, Info } from 'lucide-react';
-
-interface HSCodeSuggestion {
-  code: string;
-  description: string;
-  confidence: number;
-  rationale: string[];
-}
-
-interface TariffInfo {
-  CD: number;
-  SD: number;
-  VAT: number;
-  AIT: number;
-  AT: number;
-  RD: number;
-  TTI: number;
-}
+import React, { useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "./ui/card";
+import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
+import { Progress } from "./ui/progress";
+import { CheckCircle, Info } from "lucide-react";
+import type { HSCodeSuggestion, TariffInfo } from "../types";
 
 interface HSCodeStepProps {
   onNext: (selectedCode: HSCodeSuggestion) => void;
@@ -28,27 +18,29 @@ interface HSCodeStepProps {
 }
 
 export function HSCodeStep({ onNext, onBack }: HSCodeStepProps) {
-  const [selectedCode, setSelectedCode] = useState<HSCodeSuggestion | null>(null);
+  const [selectedCode, setSelectedCode] = useState<HSCodeSuggestion | null>(
+    null
+  );
 
   const suggestions: HSCodeSuggestion[] = [
     {
-      code: '62052000',
-      description: 'Men\'s cotton shirts (woven)',
+      code: "62052000",
+      description: "Men's cotton shirts (woven)",
       confidence: 0.92,
-      rationale: ['woven', 'men\'s', '100% cotton']
+      rationale: ["woven", "men's", "100% cotton"],
     },
     {
-      code: '62053000',
-      description: 'Men\'s shirts of man-made fibres',
+      code: "62053000",
+      description: "Men's shirts of man-made fibres",
       confidence: 0.41,
-      rationale: ['woven', 'men\'s', 'synthetic fibers']
+      rationale: ["woven", "men's", "synthetic fibers"],
     },
     {
-      code: '62052010',
-      description: 'Men\'s cotton shirts, knitted',
+      code: "62052010",
+      description: "Men's cotton shirts, knitted",
       confidence: 0.23,
-      rationale: ['men\'s', '100% cotton', 'knit construction']
-    }
+      rationale: ["men's", "100% cotton", "knit construction"],
+    },
   ];
 
   const tariffInfo: TariffInfo = {
@@ -58,7 +50,7 @@ export function HSCodeStep({ onNext, onBack }: HSCodeStepProps) {
     AIT: 5.0,
     AT: 2.0,
     RD: 0.0,
-    TTI: 1.0
+    TTI: 1.0,
   };
 
   const handleSelect = (suggestion: HSCodeSuggestion) => {
@@ -75,15 +67,19 @@ export function HSCodeStep({ onNext, onBack }: HSCodeStepProps) {
     <div className="space-y-6">
       <div>
         <h2>Step 2: HS Code Suggestions</h2>
-        <p className="text-muted-foreground">Select the most appropriate HS code for your product</p>
+        <p className="text-muted-foreground">
+          Select the most appropriate HS code for your product
+        </p>
       </div>
 
       <div className="space-y-4">
         {suggestions.map((suggestion) => (
-          <Card 
+          <Card
             key={suggestion.code}
             className={`cursor-pointer transition-all hover:shadow-md ${
-              selectedCode?.code === suggestion.code ? 'ring-2 ring-primary' : ''
+              selectedCode?.code === suggestion.code
+                ? "ring-2 ring-primary"
+                : ""
             }`}
             onClick={() => handleSelect(suggestion)}
           >
@@ -96,14 +92,21 @@ export function HSCodeStep({ onNext, onBack }: HSCodeStepProps) {
                       <CheckCircle className="h-5 w-5 text-green-500" />
                     )}
                   </div>
-                  <p className="text-muted-foreground mb-3">{suggestion.description}</p>
-                  
+                  <p className="text-muted-foreground mb-3">
+                    {suggestion.description}
+                  </p>
+
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-sm">Confidence</span>
-                    <Progress value={suggestion.confidence * 100} className="w-24" />
-                    <span className="text-sm">{(suggestion.confidence * 100).toFixed(0)}%</span>
+                    <Progress
+                      value={suggestion.confidence * 100}
+                      className="w-24"
+                    />
+                    <span className="text-sm">
+                      {(suggestion.confidence * 100).toFixed(0)}%
+                    </span>
                   </div>
-                  
+
                   <div className="flex flex-wrap gap-1">
                     {suggestion.rationale.map((reason, idx) => (
                       <Badge key={idx} variant="secondary" className="text-xs">
@@ -125,7 +128,9 @@ export function HSCodeStep({ onNext, onBack }: HSCodeStepProps) {
               <Info className="h-5 w-5" />
               NBR Tariff Information
             </CardTitle>
-            <CardDescription>Bangladesh Customs tariff breakdown for HS {selectedCode.code}</CardDescription>
+            <CardDescription>
+              Bangladesh Customs tariff breakdown for HS {selectedCode.code}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -166,8 +171,8 @@ export function HSCodeStep({ onNext, onBack }: HSCodeStepProps) {
         <Button variant="outline" onClick={onBack}>
           Back
         </Button>
-        <Button 
-          onClick={handleNext} 
+        <Button
+          onClick={handleNext}
           disabled={!selectedCode}
           className="flex-1"
         >

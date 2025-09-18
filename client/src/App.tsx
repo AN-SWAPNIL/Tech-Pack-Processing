@@ -5,28 +5,11 @@ import { HSCodeStep } from "./components/HSCodeStep";
 import { ComplianceStep } from "./components/ComplianceStep";
 import { GenerateStep } from "./components/GenerateStep";
 import { ReviewStep } from "./components/ReviewStep";
-
-interface TechPackSummary {
-  materialPercentage: { material: string; percentage: number }[];
-  fabricType: "knit" | "woven";
-  garmentType: string;
-  gender: string;
-}
-
-interface HSCodeSuggestion {
-  code: string;
-  description: string;
-  confidence: number;
-  rationale: string[];
-}
-
-interface ComplianceData {
-  destination: string;
-  office: string;
-  port: string;
-  udLcNumber?: string;
-  btbLcNumber?: string;
-}
+import type {
+  TechPackSummary,
+  HSCodeSuggestion,
+  ComplianceData,
+} from "./types";
 
 export default function App() {
   const [currentStep, setCurrentStep] = useState(1);
