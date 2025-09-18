@@ -1,14 +1,14 @@
-import { useState } from 'react';
-import { StepNavigation } from './components/StepNavigation';
-import { UploadStep } from './components/UploadStep';
-import { HSCodeStep } from './components/HSCodeStep';
-import { ComplianceStep } from './components/ComplianceStep';
-import { GenerateStep } from './components/GenerateStep';
-import { ReviewStep } from './components/ReviewStep';
+import React, { useState } from "react";
+import { StepNavigation } from "./components/StepNavigation";
+import { UploadStep } from "./components/UploadStep";
+import { HSCodeStep } from "./components/HSCodeStep";
+import { ComplianceStep } from "./components/ComplianceStep";
+import { GenerateStep } from "./components/GenerateStep";
+import { ReviewStep } from "./components/ReviewStep";
 
 interface TechPackSummary {
   materialPercentage: { material: string; percentage: number }[];
-  fabricType: 'knit' | 'woven';
+  fabricType: "knit" | "woven";
   garmentType: string;
   gender: string;
 }
@@ -31,9 +31,13 @@ interface ComplianceData {
 export default function App() {
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
-  const [techPackData, setTechPackData] = useState<TechPackSummary | null>(null);
+  const [techPackData, setTechPackData] = useState<TechPackSummary | null>(
+    null
+  );
   const [hsCodeData, setHSCodeData] = useState<HSCodeSuggestion | null>(null);
-  const [complianceData, setComplianceData] = useState<ComplianceData | null>(null);
+  const [complianceData, setComplianceData] = useState<ComplianceData | null>(
+    null
+  );
 
   const handleStepComplete = (step: number) => {
     if (!completedSteps.includes(step)) {
@@ -43,7 +47,10 @@ export default function App() {
 
   const handleStepNavigation = (step: number) => {
     // Only allow navigation to completed steps or next step
-    if (completedSteps.includes(step) || step === Math.max(...completedSteps, 0) + 1) {
+    if (
+      completedSteps.includes(step) ||
+      step === Math.max(...completedSteps, 0) + 1
+    ) {
       setCurrentStep(step);
     }
   };
@@ -88,7 +95,8 @@ export default function App() {
             <div>
               <h1>Factory & Buying-House Export System</h1>
               <p className="text-muted-foreground">
-                Trade compliance and documentation platform for Bangladesh exports
+                Trade compliance and documentation platform for Bangladesh
+                exports
               </p>
             </div>
           </div>
@@ -102,33 +110,22 @@ export default function App() {
       />
 
       <main className="max-w-6xl mx-auto px-6 py-8">
-        {currentStep === 1 && (
-          <UploadStep onNext={handleUploadNext} />
-        )}
-        
+        {currentStep === 1 && <UploadStep onNext={handleUploadNext} />}
+
         {currentStep === 2 && (
-          <HSCodeStep 
-            onNext={handleHSCodeNext} 
-            onBack={handleBack}
-          />
+          <HSCodeStep onNext={handleHSCodeNext} onBack={handleBack} />
         )}
-        
+
         {currentStep === 3 && (
-          <ComplianceStep 
-            onNext={handleComplianceNext} 
-            onBack={handleBack}
-          />
+          <ComplianceStep onNext={handleComplianceNext} onBack={handleBack} />
         )}
-        
+
         {currentStep === 4 && (
-          <GenerateStep 
-            onNext={handleGenerateNext} 
-            onBack={handleBack}
-          />
+          <GenerateStep onNext={handleGenerateNext} onBack={handleBack} />
         )}
-        
+
         {currentStep === 5 && (
-          <ReviewStep 
+          <ReviewStep
             onBack={handleBack}
             onEdit={(step) => setCurrentStep(step)}
           />
@@ -145,9 +142,7 @@ export default function App() {
               <span>•</span>
               <span>ASYCUDA Compatible</span>
             </div>
-            <div>
-              Export Documentation System v2.1
-            </div>
+            <div>Export Documentation System v2.1</div>
           </div>
         </div>
       </footer>

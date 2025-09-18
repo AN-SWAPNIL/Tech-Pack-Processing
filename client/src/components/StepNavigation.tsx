@@ -1,3 +1,4 @@
+import React from 'react';
 import { CheckCircle, Circle } from 'lucide-react';
 import { cn } from './ui/utils';
 
