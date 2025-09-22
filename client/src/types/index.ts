@@ -1,4 +1,4 @@
-// Shared types for the Tech Pack Processing application
+// Frontend types for the Tech Pack Processing application
 
 export interface TechPackSummary {
   materialPercentage: { material: string; percentage: number }[];
@@ -8,19 +8,13 @@ export interface TechPackSummary {
   description: string;
 }
 
-export interface HSCodeSuggestion {
-  code: string;
-  description: string;
-  confidence: number;
-  rationale: string[];
-}
-
-export interface ComplianceData {
-  destination: string;
-  office: string;
-  port: string;
-  udLcNumber?: string;
-  btbLcNumber?: string;
+export interface TechPackUploadResponse {
+  techPackSummary: TechPackSummary;
+  fileInfo: {
+    originalName: string;
+    size: number;
+    type: string;
+  };
 }
 
 export interface TariffInfo {
@@ -31,4 +25,34 @@ export interface TariffInfo {
   AT: number;
   RD: number;
   TTI: number;
+}
+
+export interface HSCodeSuggestion {
+  code: string;
+  description: string;
+  confidence: number;
+  rationale: string[];
+  tariffInfo?: TariffInfo;
+}
+
+export interface ComplianceData {
+  destination: string;
+  office: string;
+  port: string;
+  udLcNumber?: string;
+  btbLcNumber?: string;
+}
+
+// API Response types for frontend
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  message: string;
+  error?: string;
+  details?: any[];
+}
+
+export interface HSCodeClassificationResponse {
+  hsCodeSuggestions: HSCodeSuggestion[];
+  techPackInfo: TechPackSummary;
 }

@@ -322,7 +322,7 @@ SUPABASE_ANON_KEY=your-anon-key
 
 # Google AI Configuration
 GOOGLE_API_KEY=your-gemini-api-key
-GOOGLE_EMBEDDING_MODEL=text-embedding-004
+GOOGLE_EMBEDDING_MODEL=gemini-embedding-001
 
 # Application Configuration
 NODE_ENV=production
@@ -429,7 +429,7 @@ export class WebsiteMonitor {
 // src/services/pdfProcessor.ts
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
+import CustomGoogleGenerativeAIEmbeddings from "./customEmbeddings.js";
 import { createClient } from "@supabase/supabase-js";
 
 export class PDFProcessor {
@@ -437,9 +437,10 @@ export class PDFProcessor {
     process.env.SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
-  private embeddings = new GoogleGenerativeAIEmbeddings({
-    modelName: "text-embedding-004",
-    apiKey: process.env.GOOGLE_API_KEY!,
+  private embeddings = new CustomGoogleGenerativeAIEmbeddings({
+    modelName: "models/gemini-embedding-001",
+    outputDimensionality: 1536,
+    taskType: "RETRIEVAL_DOCUMENT",
   });
 
   async processPDF(
@@ -902,7 +903,7 @@ interface TechPackInfo {
 // src/services/ragAgent.ts
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { PromptTemplate } from "@langchain/core/prompts";
-import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
+import CustomGoogleGenerativeAIEmbeddings from "./customEmbeddings.js";
 import { createClient } from "@supabase/supabase-js";
 
 export class RAGAgent {
@@ -910,9 +911,10 @@ export class RAGAgent {
     process.env.SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
-  private embeddings = new GoogleGenerativeAIEmbeddings({
-    modelName: "text-embedding-004",
-    apiKey: process.env.GOOGLE_API_KEY!,
+  private embeddings = new CustomGoogleGenerativeAIEmbeddings({
+    modelName: "models/gemini-embedding-001",
+    outputDimensionality: 1536,
+    taskType: "RETRIEVAL_QUERY",
   });
   private llm = new ChatGoogleGenerativeAI({
     modelName: "gemini-1.5-pro",

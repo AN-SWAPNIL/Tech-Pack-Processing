@@ -1,10 +1,13 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { StepNavigation } from "./components/StepNavigation";
 import { UploadStep } from "./components/UploadStep";
 import { HSCodeStep } from "./components/HSCodeStep";
 import { ComplianceStep } from "./components/ComplianceStep";
 import { GenerateStep } from "./components/GenerateStep";
 import { ReviewStep } from "./components/ReviewStep";
+import { Button } from "./components/ui/button";
+import { Trash2 } from "lucide-react";
+import { localStorageManager } from "./utils/localStorage";
 import type {
   TechPackSummary,
   HSCodeSuggestion,
@@ -21,6 +24,50 @@ export default function App() {
   const [complianceData, setComplianceData] = useState<ComplianceData | null>(
     null
   );
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Load data from localStorage on component mount
+  useEffect(() => {
+    const storedData = localStorageManager.loadStoredData();
+
+    if (storedData.techPackData) {
+      setTechPackData(storedData.techPackData);
+      setCompletedSteps((prev) => (prev.includes(1) ? prev : [...prev, 1]));
+    }
+
+    if (storedData.hsCodeData) {
+      setHSCodeData(storedData.hsCodeData);
+      setCompletedSteps((prev) => (prev.includes(2) ? prev : [...prev, 2]));
+    }
+
+    if (storedData.complianceData) {
+      setComplianceData(storedData.complianceData);
+      setCompletedSteps((prev) => (prev.includes(3) ? prev : [...prev, 3]));
+    }
+
+    // Set current step based on what data we have
+    let targetStep = 1;
+    if (storedData.complianceData) {
+      targetStep = 3; // Go to generate step
+    } else if (storedData.hsCodeData) {
+      targetStep = 2; // Go to compliance step
+    } else if (storedData.techPackData) {
+      targetStep = 1; // Go to HS code step
+    }
+
+    if (targetStep > 1) {
+      setCurrentStep(targetStep);
+    }
+
+    setIsLoaded(true);
+  }, []);
+
+  // Save app state to localStorage whenever it changes
+  useEffect(() => {
+    if (isLoaded) {
+      localStorageManager.saveAppState(completedSteps, currentStep);
+    }
+  }, [completedSteps, currentStep, isLoaded]);
 
   const handleStepComplete = (step: number) => {
     if (!completedSteps.includes(step)) {
@@ -38,20 +85,25 @@ export default function App() {
     }
   };
 
-  const handleUploadNext = (summary: TechPackSummary) => {
+  const handleUploadNext = (summary: TechPackSummary, file?: File) => {
     setTechPackData(summary);
+    if (file) {
+      localStorageManager.saveTechPackData(summary, file);
+    }
     handleStepComplete(1);
     setCurrentStep(2);
   };
 
   const handleHSCodeNext = (selectedCode: HSCodeSuggestion) => {
     setHSCodeData(selectedCode);
+    localStorageManager.saveHSCodeData(selectedCode);
     handleStepComplete(2);
     setCurrentStep(3);
   };
 
   const handleComplianceNext = (data: ComplianceData) => {
     setComplianceData(data);
+    localStorageManager.saveComplianceData(data);
     handleStepComplete(3);
     setCurrentStep(4);
   };
@@ -67,6 +119,27 @@ export default function App() {
     }
   };
 
+  const handleClearData = () => {
+    localStorageManager.clearAllData();
+    setTechPackData(null);
+    setHSCodeData(null);
+    setComplianceData(null);
+    setCompletedSteps([]);
+    setCurrentStep(1);
+  };
+
+  // Show loading state while data is being loaded from localStorage
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading your session...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-card border-b">
@@ -75,13 +148,28 @@ export default function App() {
             <div className="p-2 bg-primary rounded-lg">
               <div className="w-6 h-6 bg-primary-foreground rounded-sm"></div>
             </div>
-            <div>
+            <div className="flex-1">
               <h1>Factory & Buying-House Export System</h1>
               <p className="text-muted-foreground">
                 Trade compliance and documentation platform for Bangladesh
                 exports
               </p>
             </div>
+
+            {(techPackData ||
+              hsCodeData ||
+              complianceData ||
+              completedSteps.length > 0) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClearData}
+                className="text-red-600 hover:text-red-700"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Clear Session
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -93,10 +181,20 @@ export default function App() {
       />
 
       <main className="max-w-6xl mx-auto px-6 py-8">
-        {currentStep === 1 && <UploadStep onNext={handleUploadNext} />}
+        {currentStep === 1 && (
+          <UploadStep
+            onNext={handleUploadNext}
+            initialData={techPackData}
+            onClearData={handleClearData}
+          />
+        )}
 
         {currentStep === 2 && (
-          <HSCodeStep onNext={handleHSCodeNext} onBack={handleBack} />
+          <HSCodeStep
+            onNext={handleHSCodeNext}
+            onBack={handleBack}
+            techPackData={techPackData}
+          />
         )}
 
         {currentStep === 3 && (

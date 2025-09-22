@@ -8,6 +8,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import techPackRoutes from "./routes/techPackRoutes.js";
 import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
+import { PDFMonitorScheduler } from "./services/pdfMonitorScheduler.js";
 
 // Load environment variables
 dotenv.config();
@@ -49,6 +50,7 @@ app.get("/health", (req, res) => {
     status: "OK",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
+    scheduler: pdfScheduler.getStatus(),
   });
 });
 
@@ -60,12 +62,27 @@ app.use(notFound);
 app.use(errorHandler);
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📱 Environment: ${process.env.NODE_ENV || "development"}`);
   console.log(
     `🌐 Frontend URL: ${process.env.FRONTEND_URL || "http://localhost:5173"}`
   );
+
+  // Setup PDF monitoring scheduler after env vars are loaded
+  let pdfScheduler;
+  try {
+    pdfScheduler = new PDFMonitorScheduler();
+    pdfScheduler.setupMonitoringTasks();
+    console.log("✅ PDF monitoring scheduler initialized");
+  } catch (error) {
+    console.error("❌ Failed to setup PDF monitoring scheduler:", error);
+  }
+
+  // Check and populate vector store if empty
+  if (pdfScheduler) {
+    await pdfScheduler.checkAndPopulateVectorStore();
+  }
 });
 
 export default app;

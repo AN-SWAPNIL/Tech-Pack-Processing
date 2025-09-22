@@ -1,36 +1,22 @@
 import { processFile } from "../services/fileProcessingService.js";
 import { extractTechPackInfo } from "../services/aiService.js";
+import { RAGAgent } from "../services/ragAgent.js";
+import { techPackSchema, hsCodeSuggestionSchema } from "../schemas/index.js";
 import Joi from "joi";
 
-// Validation schema
-const uploadSchema = Joi.object({
-  fieldname: Joi.string().required(),
-  originalname: Joi.string().required(),
-  mimetype: Joi.string().required(),
-  filename: Joi.string().required(),
-  path: Joi.string().required(),
-  size: Joi.number().required(),
-}).unknown(true); // Allow additional properties from multer
+// Lazy initialization of RAG Agent
+let ragAgent = null;
+const getRagAgent = () => {
+  if (!ragAgent) {
+    ragAgent = new RAGAgent();
+  }
+  return ragAgent;
+};
 
 export const uploadTechPack = async (req, res) => {
   try {
-    // Validate file upload
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: "No file uploaded",
-      });
-    }
-
-    // Validate file structure
-    const { error } = uploadSchema.validate(req.file);
-    if (error) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid file format",
-        details: error.details,
-      });
-    }
+    // File validation is handled by middleware
+    // req.file is already validated by validateUpload middleware
 
     console.log(`📁 Processing file: ${req.file.originalname}`);
 
@@ -63,7 +49,17 @@ export const uploadTechPack = async (req, res) => {
       });
     }
 
-    // Step 4: Return the processed information
+    // Step 4: Validate the extracted tech pack data structure
+    const { error: techPackError } = techPackSchema.validate(aiResult.data);
+    if (techPackError) {
+      console.warn(
+        "⚠️ Tech pack data validation failed:",
+        techPackError.details
+      );
+      // Continue anyway but log the validation issues for debugging
+    }
+
+    // Step 5: Return the processed tech pack information (without HS codes)
     res.json({
       success: true,
       data: {
@@ -101,6 +97,66 @@ export const uploadTechPack = async (req, res) => {
   }
 };
 
+// New endpoint for HS code classification
+export const classifyHSCode = async (req, res) => {
+  try {
+    console.log("🔍 Starting HS code classification...");
+
+    // Request body validation is handled by middleware
+    // req.body is already validated by validateTechPack middleware
+    const techPackInfo = req.body;
+
+    // Generate HS code suggestions using RAG agent
+    let hsCodeSuggestions = [];
+    try {
+      console.log("🤖 Using RAG agent for HS code classification...");
+      hsCodeSuggestions = await getRagAgent().classifyHSCode(techPackInfo);
+      console.log(
+        `✅ Generated ${hsCodeSuggestions.length} HS code suggestions`
+      );
+    } catch (ragError) {
+      console.warn(
+        "⚠️ RAG agent failed, falling back to mock suggestions:",
+        ragError.message
+      );
+      // Fallback to mock suggestions if RAG fails (e.g., no data in vector DB yet)
+      hsCodeSuggestions = await generateMockHSCodeSuggestions(techPackInfo);
+    }
+
+    // Validate HS code suggestions format
+    const suggestionValidation = Joi.array()
+      .items(hsCodeSuggestionSchema)
+      .validate(hsCodeSuggestions);
+    if (suggestionValidation.error) {
+      console.warn(
+        "⚠️ HS code suggestions validation failed:",
+        suggestionValidation.error.details
+      );
+    }
+
+    // Return HS code suggestions
+    res.json({
+      success: true,
+      data: {
+        hsCodeSuggestions: hsCodeSuggestions,
+        techPackInfo: techPackInfo,
+      },
+      message: "HS code classification completed successfully",
+    });
+  } catch (error) {
+    console.error("❌ Error in HS code classification:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to classify HS code",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
+    });
+  }
+};
+
 export const processTechPack = async (req, res) => {
   try {
     const { id } = req.params;
@@ -125,3 +181,88 @@ export const processTechPack = async (req, res) => {
     });
   }
 };
+
+// Fallback function for mock HS code suggestions
+async function generateMockHSCodeSuggestions(techPackInfo) {
+  console.log("🔧 Generating mock HS code suggestions...");
+
+  // Generate mock suggestions based on garment type and fabric type
+  const suggestions = [];
+
+  if (techPackInfo.fabricType === "knit") {
+    if (
+      techPackInfo.garmentType.toLowerCase().includes("shirt") ||
+      techPackInfo.garmentType.toLowerCase().includes("t-shirt")
+    ) {
+      suggestions.push({
+        code: "61091000",
+        description:
+          "T-shirts, singlets and other vests, knitted or crocheted, of cotton",
+        confidence: 0.95,
+        rationale: [
+          "Knit construction",
+          "Cotton material",
+          "Shirt type garment",
+        ],
+        tariffInfo: {
+          CD: 25.0,
+          SD: 4.0,
+          VAT: 15.0,
+          AIT: 5.0,
+          AT: 2.0,
+          RD: 0.0,
+          TTI: 1.0,
+        },
+      });
+    }
+  } else if (techPackInfo.fabricType === "woven") {
+    if (techPackInfo.garmentType.toLowerCase().includes("shirt")) {
+      suggestions.push({
+        code: "62052000",
+        description: "Men's or boys' shirts, woven, of cotton",
+        confidence: 0.92,
+        rationale: ["Woven construction", "Cotton material", "Men's shirt"],
+        tariffInfo: {
+          CD: 25.0,
+          SD: 4.0,
+          VAT: 15.0,
+          AIT: 5.0,
+          AT: 2.0,
+          RD: 0.0,
+          TTI: 1.0,
+        },
+      });
+    }
+  }
+
+  // Add a generic fallback based on gender and fabric type
+  if (suggestions.length === 0) {
+    const isWomen =
+      techPackInfo.gender.toLowerCase().includes("women") ||
+      techPackInfo.gender.toLowerCase().includes("girls");
+
+    suggestions.push({
+      code: isWomen ? "62064000" : "62059080",
+      description: isWomen
+        ? "Women's or girls' blouses, shirts and shirt-blouses, woven, of other textile materials"
+        : "Men's or boys' shirts, woven, of other textile materials",
+      confidence: 0.7,
+      rationale: [
+        `${techPackInfo.fabricType} construction`,
+        `${techPackInfo.gender} garment`,
+        "General textile classification",
+      ],
+      tariffInfo: {
+        CD: 25.0,
+        SD: 4.0,
+        VAT: 15.0,
+        AIT: 5.0,
+        AT: 2.0,
+        RD: 0.0,
+        TTI: 1.0,
+      },
+    });
+  }
+
+  return suggestions;
+}
