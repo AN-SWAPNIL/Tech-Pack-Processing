@@ -40,7 +40,7 @@ Instructions:
 4. Extract exact tariff rates (CD, SD, VAT, AIT, RD, AT, TTI) from the context
 5. Include confidence levels and rationale
 6. Use ALL available context rows to provide diverse and comprehensive suggestions
-7. Return all suggestions with confidence >= 0.20 (20%)
+7. Return all suggestions with confidence >= 0.20 (20%) (this will only be applicable if AT LEAST {minSuggestions} suggestions is available)
 8. Sort suggestions by confidence score in descending order (highest confidence first)
 
 Response format (JSON only):
@@ -50,7 +50,7 @@ Response format (JSON only):
     {{
       "code": "string (e.g., 6109.10.00)",
       "description": "string",
-      "confidence": number (0.20-1.0, minimum 0.20 required),
+      "confidence": number (0.00-1.00),
       "rationale": ["string"],
       "tariffInfo": {{
         "CD": number,
