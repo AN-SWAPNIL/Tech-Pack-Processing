@@ -136,19 +136,19 @@ export function UploadStep({
     }
   };
 
-  const handleReupload = () => {
-    setFile(null);
-    setSummary(null);
-    setError(null);
-    setIsFromStorage(false);
-  };
+  // const handleReupload = () => {
+  //   setFile(null);
+  //   setSummary(null);
+  //   setError(null);
+  //   setIsFromStorage(false);
+  // };
 
-  const handleClearData = () => {
-    if (onClearData) {
-      onClearData();
-    }
-    handleReupload();
-  };
+  // const handleClearData = () => {
+  //   if (onClearData) {
+  //     onClearData();
+  //   }
+  //   handleReupload();
+  // };
 
   return (
     <div className="space-y-6">
@@ -329,7 +329,7 @@ export function UploadStep({
               <p className="mt-1 text-sm">{summary.description}</p>
             </div>
 
-            <div className="flex gap-2">
+            {/* <div className="flex gap-2">
               <Button onClick={handleNext} className="flex-1">
                 Continue to HS Code Suggestions
               </Button>
@@ -350,7 +350,11 @@ export function UploadStep({
                   </Button>
                 </>
               )}
-            </div>
+            </div> */}
+
+            <Button onClick={handleNext} className="w-full">
+              Continue to HS Code Suggestions
+            </Button>
           </CardContent>
         </Card>
       )}

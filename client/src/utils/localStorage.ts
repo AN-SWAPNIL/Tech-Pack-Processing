@@ -34,9 +34,33 @@ export interface StoredData {
 }
 
 class LocalStorageManager {
-  // Save tech pack data and file info
+  // Clear data for subsequent steps when a previous step is updated
+  clearSubsequentSteps(updatedStep: number): void {
+    console.log(`🧹 Clearing data for steps after step ${updatedStep}`);
+
+    switch (updatedStep) {
+      case 1: // Tech pack updated - clear HS code and compliance data
+        this.clearHSCodeData();
+        this.clearHSCodeSuggestions();
+        this.clearComplianceData();
+        this.saveAppState([], 1); // Reset to step 1
+        break;
+      case 2: // HS code updated - clear compliance data only
+        this.clearComplianceData();
+        this.saveAppState([1], 2); // Keep step 1, reset to step 2
+        break;
+      case 3: // Compliance updated - nothing to clear after this
+        this.saveAppState([1, 2], 3); // Keep steps 1 and 2
+        break;
+    }
+  }
+
+  // Save tech pack data and file info with cascading clear
   saveTechPackData(data: TechPackSummary, file: File): void {
     try {
+      // Clear all subsequent steps when step 1 data is updated
+      this.clearSubsequentSteps(1);
+
       localStorage.setItem(STORAGE_KEYS.TECH_PACK_DATA, JSON.stringify(data));
 
       const fileInfo: FileInfo = {
@@ -70,9 +94,12 @@ class LocalStorageManager {
     }
   }
 
-  // Save HS code data
+  // Save HS code data with cascading clear
   saveHSCodeData(data: HSCodeSuggestion): void {
     try {
+      // Clear subsequent steps when step 2 data is updated
+      this.clearSubsequentSteps(2);
+
       localStorage.setItem(STORAGE_KEYS.HS_CODE_DATA, JSON.stringify(data));
       console.log("💾 HS code data saved to localStorage");
     } catch (error) {
@@ -80,9 +107,12 @@ class LocalStorageManager {
     }
   }
 
-  // Save HS code suggestions list
+  // Save HS code suggestions list with cascading clear
   saveHSCodeSuggestions(suggestions: HSCodeSuggestion[]): void {
     try {
+      // Clear subsequent steps when HS code suggestions are updated
+      this.clearSubsequentSteps(2);
+
       localStorage.setItem(
         STORAGE_KEYS.HS_CODE_SUGGESTIONS,
         JSON.stringify(suggestions)
@@ -96,9 +126,12 @@ class LocalStorageManager {
     }
   }
 
-  // Save compliance data
+  // Save compliance data with step update
   saveComplianceData(data: ComplianceData): void {
     try {
+      // Update step when compliance data is saved
+      this.clearSubsequentSteps(3);
+
       localStorage.setItem(STORAGE_KEYS.COMPLIANCE_DATA, JSON.stringify(data));
       console.log("💾 Compliance data saved to localStorage");
     } catch (error) {
@@ -240,6 +273,32 @@ class LocalStorageManager {
       console.log("🧹 HS code data cleared from localStorage");
     } catch (error) {
       console.warn("⚠️ Failed to clear HS code data from localStorage:", error);
+    }
+  }
+
+  // Clear HS code suggestions only
+  clearHSCodeSuggestions(): void {
+    try {
+      localStorage.removeItem(STORAGE_KEYS.HS_CODE_SUGGESTIONS);
+      console.log("🧹 HS code suggestions cleared from localStorage");
+    } catch (error) {
+      console.warn(
+        "⚠️ Failed to clear HS code suggestions from localStorage:",
+        error
+      );
+    }
+  }
+
+  // Clear compliance data only
+  clearComplianceData(): void {
+    try {
+      localStorage.removeItem(STORAGE_KEYS.COMPLIANCE_DATA);
+      console.log("🧹 Compliance data cleared from localStorage");
+    } catch (error) {
+      console.warn(
+        "⚠️ Failed to clear compliance data from localStorage:",
+        error
+      );
     }
   }
 
