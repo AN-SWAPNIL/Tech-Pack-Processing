@@ -195,8 +195,8 @@ export function HSCodeStep({ onNext, onBack, techPackData }: HSCodeStepProps) {
                 <CardContent className="pt-6">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-lg">HS {suggestion.code}</h3>
+                      <div className="flex items-center gap-3 mb-3 flex-wrap">
+                        <h3 className="text-lg font-semibold">HS {suggestion.code}</h3>
                         {selectedCode?.code === suggestion.code && (
                           <CheckCircle className="h-5 w-5 text-green-500" />
                         )}
@@ -215,37 +215,38 @@ export function HSCodeStep({ onNext, onBack, techPackData }: HSCodeStepProps) {
                             ? "Customs.gov.bd"
                             : "Mixed Sources"}
                         </Badge>
+                        
+                        {/* NBR Chapter and PDF Link */}
+                        {suggestion.source === "nbr" && suggestion.chapter && (
+                          <div className="flex items-center gap-1">
+                            <FileText className="h-4 w-4" />
+                            <span className="text-muted-foreground text-sm">
+                              {suggestion.chapter}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {suggestion.source === "nbr" && suggestion.pdfLink && (
+                          <Button variant="outline" size="sm" asChild>
+                            <a
+                              href={suggestion.pdfLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2"
+                              onClick={(e: React.MouseEvent) =>
+                                e.stopPropagation()
+                              }
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                              View NBR PDF
+                            </a>
+                          </Button>
+                        )}
                       </div>
                       <p className="text-muted-foreground mb-3">
                         {suggestion.description}
                       </p>
 
-                      {/* NBR Chapter and PDF Link */}
-                      {suggestion.source === "nbr" &&
-                        (suggestion.chapter || suggestion.pdfLink) && (
-                          <div className="flex items-center gap-3 mb-3 text-sm">
-                            {suggestion.chapter && (
-                              <div className="flex items-center gap-1">
-                                <FileText className="h-4 w-4" />
-                                <span className="text-muted-foreground">
-                                  {suggestion.chapter}
-                                </span>
-                              </div>
-                            )}
-                            {suggestion.pdfLink && (
-                              <a
-                                href={suggestion.pdfLink}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                                <span>View PDF</span>
-                              </a>
-                            )}
-                          </div>
-                        )}
 
                       <div className="flex items-center gap-2 mb-3">
                         <span className="text-sm">Confidence</span>
@@ -302,7 +303,7 @@ export function HSCodeStep({ onNext, onBack, techPackData }: HSCodeStepProps) {
           </CardHeader>
           <CardContent>
             {/* Source Information */}
-            {selectedCode.source && (
+            {/* {selectedCode.source && (
               <div className="mb-4 p-3 bg-muted/30 rounded-lg">
                 <div className="text-sm font-medium">Data Source</div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -321,19 +322,26 @@ export function HSCodeStep({ onNext, onBack, techPackData }: HSCodeStepProps) {
                     <span>• {selectedCode.chapter}</span>
                   )}
                   {selectedCode.pdfLink && (
-                    <a
-                      href={selectedCode.pdfLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      asChild
+                      className="ml-2"
                     >
-                      <ExternalLink className="h-3 w-3" />
-                      View Source PDF
-                    </a>
+                      <a
+                        href={selectedCode.pdfLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        View Source PDF
+                      </a>
+                    </Button>
                   )}
                 </div>
               </div>
-            )}
+            )} */}
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center p-3 bg-muted/50 rounded-lg">

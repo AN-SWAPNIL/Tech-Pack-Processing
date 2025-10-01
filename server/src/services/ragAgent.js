@@ -37,7 +37,7 @@ Instructions:
 1. Analyze the provided tariff context to find relevant HS codes
 2. Consider the product specifications and material composition
 3. Provide AT LEAST {minSuggestions} most appropriate HS code suggestions with different codes (minimum of 5, or the number of context rows available, whichever is smaller)
-4. Include confidence levels and rationale
+4. Include confidence levels and SHORT rationale (max 10-20 words max each)
 5. Use ALL available context rows to provide diverse and comprehensive suggestions
 6. Return all suggestions with confidence >= 0.20 (20%) (this will only be applicable if AT LEAST {minSuggestions} suggestions is available)
 7. Sort suggestions by confidence score in descending order (highest confidence first)
@@ -50,7 +50,7 @@ Response format (JSON only):
       "code": "string (e.g., 6109.10.00)",
       "description": "string",
       "confidence": number (0.00-1.00),
-      "rationale": ["string"]
+      "rationale": ["short strings"]
     }}
   ]
 }}
@@ -143,6 +143,34 @@ Response:
       }
 
       let suggestions = result.suggestions || [];
+
+      // Normalize confidence values and validate suggestions
+      suggestions = suggestions.map((suggestion) => {
+        let confidence = suggestion.confidence || 0;
+
+        // If confidence is > 1, assume it's a percentage and convert to decimal
+        if (confidence > 1) {
+          confidence = confidence / 100;
+        }
+
+        // Ensure confidence is between 0 and 1
+        confidence = Math.max(0, Math.min(1, confidence));
+
+        return {
+          ...suggestion,
+          confidence,
+          rationale: suggestion.rationale || [], // Ensure rationale is always an array
+        };
+      });
+
+      console.log(
+        `🔍 Processed ${suggestions.length} suggestions before filtering:`,
+        suggestions.map((s) => ({
+          code: s.code,
+          confidence: s.confidence,
+          rationale: s.rationale?.length || 0,
+        }))
+      );
 
       // Filter suggestions by confidence >= 15% to be more inclusive
       suggestions = suggestions.filter((suggestion) => {
@@ -438,7 +466,6 @@ HS code tariff customs classification Bangladesh apparel textile garment clothin
       );
 
       let results = [];
-      let source = "nbr";
 
       if (nbrError) {
         console.warn(`⚠️ NBR search failed: ${nbrError.message}`);
@@ -790,6 +817,13 @@ HS code tariff customs classification Bangladesh apparel textile garment clothin
               doc.content.toLowerCase().includes(hsCode.toLowerCase())
           ) || relevantDocs[0]; // Fallback to first doc if no exact match
 
+        console.log(`🔍 Processing suggestion ${hsCode}:`);
+        console.log(`  - relevantDoc source: ${relevantDoc?.source || "none"}`);
+        console.log(
+          `  - relevantDoc metadata:`,
+          relevantDoc?.metadata || "none"
+        );
+
         // Add NBR source information
         if (relevantDoc && relevantDoc.source) {
           enhancedSuggestion.source = relevantDoc.source;
@@ -797,20 +831,45 @@ HS code tariff customs classification Bangladesh apparel textile garment clothin
           // Add NBR specific metadata if available
           if (relevantDoc.source === "nbr" && relevantDoc.metadata) {
             enhancedSuggestion.chapter = relevantDoc.metadata.chapter;
-            enhancedSuggestion.pdfLink = relevantDoc.metadata.pdfLink;
-            enhancedSuggestion.year = relevantDoc.metadata.year;
+            enhancedSuggestion.pdfLink =
+              relevantDoc.metadata.fileUrl || relevantDoc.metadata.pdfLink; // Handle both field names
+            enhancedSuggestion.year =
+              relevantDoc.metadata.version || relevantDoc.metadata.year; // Handle both field names
+          }
+
+          // Add customs specific metadata if available
+          if (relevantDoc.source === "customs" && relevantDoc.metadata) {
+            enhancedSuggestion.year =
+              relevantDoc.metadata.version || relevantDoc.metadata.year;
+            enhancedSuggestion.pdfLink =
+              relevantDoc.metadata.fileUrl || relevantDoc.metadata.pdfLink; // Handle both field names for customs too
+            // For customs data, derive chapter from first 2 digits of HS code
+            if (hsCode) {
+              const chapterNumber = hsCode.replace(/\./g, "").substring(0, 2);
+              enhancedSuggestion.chapter = `Chapter-${chapterNumber}`;
+            }
           }
         } else {
-          enhancedSuggestion.source = "customs"; // Default fallback
+          // Default fallback for customs
+          enhancedSuggestion.source = "customs";
+          // Derive chapter from HS code for fallback
+          if (hsCode) {
+            const chapterNumber = hsCode.replace(/\./g, "").substring(0, 2);
+            enhancedSuggestion.chapter = `Chapter-${chapterNumber}`;
+            enhancedSuggestion.year = "2025-2026"; // Default current year
+          }
         }
 
         // Fetch tariff information from customs_tariff_rates table
         if (hsCode) {
           try {
+            // Remove dots from HS code for database lookup (database stores codes without dots)
+            const cleanHsCode = hsCode.replace(/\./g, "");
+
             const { data: tariffData } = await this.supabase
               .from("customs_tariff_rates")
               .select("*")
-              .eq("hs_code", hsCode)
+              .eq("hs_code", cleanHsCode)
               .single();
 
             if (tariffData) {
@@ -856,6 +915,14 @@ HS code tariff customs classification Bangladesh apparel textile garment clothin
         }
 
         enhancedSuggestions.push(enhancedSuggestion);
+        console.log(`  - Enhanced suggestion:`, {
+          code: enhancedSuggestion.code,
+          source: enhancedSuggestion.source,
+          chapter: enhancedSuggestion.chapter,
+          pdfLink: enhancedSuggestion.pdfLink,
+          year: enhancedSuggestion.year,
+          hasTariffInfo: !!enhancedSuggestion.tariffInfo,
+        });
       }
 
       console.log(

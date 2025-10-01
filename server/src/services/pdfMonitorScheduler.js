@@ -340,6 +340,30 @@ export class PDFMonitorScheduler {
     }
   }
 
+  // Check if any of the three main tables are empty
+  async checkIfAnyTableEmpty() {
+    try {
+      const tables = ["documents", "chapter_documents", "customs_tariff_rates"];
+      
+      for (const tableName of tables) {
+        const { count } = await this.supabase
+          .from(tableName)
+          .select("id", { count: "exact" });
+
+        if (count === 0) {
+          console.log(`📊 Table ${tableName} is empty`);
+          return true;
+        }
+      }
+      
+      console.log(`📊 All tables have data`);
+      return false;
+    } catch (error) {
+      console.error("❌ Error checking table status:", error);
+      return true; // Default to needing initialization on error
+    }
+  }
+
   async checkAndProcessTable(tableName, processingFunction) {
     try {
       const needsUpdate = await this.isTableOutdatedOrEmpty(tableName);

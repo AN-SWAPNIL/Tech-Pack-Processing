@@ -81,9 +81,15 @@ app.listen(PORT, async () => {
     console.error("❌ Failed to setup PDF monitoring scheduler:", error);
   }
 
-  // Check and populate vector store if empty
+  // Check and populate vector store only if any table is empty
   if (pdfScheduler) {
-    await pdfScheduler.checkAndPopulateVectorStore();
+    const needsInitialization = await pdfScheduler.checkIfAnyTableEmpty();
+    if (needsInitialization) {
+      console.log("🔍 One or more tables are empty, initializing vector stores...");
+      await pdfScheduler.checkAndPopulateVectorStore();
+    } else {
+      console.log("✅ All vector stores are populated, skipping initialization");
+    }
   }
 });
 
