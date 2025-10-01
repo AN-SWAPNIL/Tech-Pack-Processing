@@ -85,10 +85,14 @@ app.listen(PORT, async () => {
   if (pdfScheduler) {
     const needsInitialization = await pdfScheduler.checkIfAnyTableEmpty();
     if (needsInitialization) {
-      console.log("🔍 One or more tables are empty, initializing vector stores...");
+      console.log(
+        "🔍 One or more tables are empty, initializing vector stores..."
+      );
       await pdfScheduler.checkAndPopulateVectorStore();
     } else {
-      console.log("✅ All vector stores are populated, skipping initialization");
+      console.log(
+        "✅ All vector stores are populated, skipping initialization"
+      );
     }
   }
 });

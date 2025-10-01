@@ -196,7 +196,9 @@ export function HSCodeStep({ onNext, onBack, techPackData }: HSCodeStepProps) {
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-3 flex-wrap">
-                        <h3 className="text-lg font-semibold">HS {suggestion.code}</h3>
+                        <h3 className="text-lg font-semibold">
+                          HS {suggestion.code}
+                        </h3>
                         {selectedCode?.code === suggestion.code && (
                           <CheckCircle className="h-5 w-5 text-green-500" />
                         )}
@@ -215,7 +217,7 @@ export function HSCodeStep({ onNext, onBack, techPackData }: HSCodeStepProps) {
                             ? "Customs.gov.bd"
                             : "Mixed Sources"}
                         </Badge>
-                        
+
                         {/* NBR Chapter and PDF Link */}
                         {suggestion.source === "nbr" && suggestion.chapter && (
                           <div className="flex items-center gap-1">
@@ -225,7 +227,7 @@ export function HSCodeStep({ onNext, onBack, techPackData }: HSCodeStepProps) {
                             </span>
                           </div>
                         )}
-                        
+
                         {suggestion.source === "nbr" && suggestion.pdfLink && (
                           <Button variant="outline" size="sm" asChild>
                             <a
@@ -246,7 +248,6 @@ export function HSCodeStep({ onNext, onBack, techPackData }: HSCodeStepProps) {
                       <p className="text-muted-foreground mb-3">
                         {suggestion.description}
                       </p>
-
 
                       <div className="flex items-center gap-2 mb-3">
                         <span className="text-sm">Confidence</span>

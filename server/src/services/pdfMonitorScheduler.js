@@ -344,7 +344,7 @@ export class PDFMonitorScheduler {
   async checkIfAnyTableEmpty() {
     try {
       const tables = ["documents", "chapter_documents", "customs_tariff_rates"];
-      
+
       for (const tableName of tables) {
         const { count } = await this.supabase
           .from(tableName)
@@ -355,7 +355,7 @@ export class PDFMonitorScheduler {
           return true;
         }
       }
-      
+
       console.log(`📊 All tables have data`);
       return false;
     } catch (error) {
