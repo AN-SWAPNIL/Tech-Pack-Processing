@@ -33,6 +33,11 @@ export interface HSCodeSuggestion {
   confidence: number;
   rationale: string[];
   tariffInfo?: TariffInfo;
+  // NBR specific fields
+  source?: "nbr" | "customs" | "mixed";
+  chapter?: string;
+  pdfLink?: string;
+  year?: string;
 }
 
 export interface ComplianceData {

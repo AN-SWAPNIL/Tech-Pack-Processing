@@ -20,6 +20,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Initialize PDF scheduler globally
+let pdfScheduler;
+
 // Security middleware
 app.use(helmet());
 app.use(compression());
@@ -50,7 +53,7 @@ app.get("/health", (req, res) => {
     status: "OK",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    scheduler: pdfScheduler.getStatus(),
+    scheduler: pdfScheduler?.getStatus() || "Not initialized",
   });
 });
 
@@ -70,7 +73,6 @@ app.listen(PORT, async () => {
   );
 
   // Setup PDF monitoring scheduler after env vars are loaded
-  let pdfScheduler;
   try {
     pdfScheduler = new PDFMonitorScheduler();
     pdfScheduler.setupMonitoringTasks();

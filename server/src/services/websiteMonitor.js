@@ -1,6 +1,7 @@
 import getSupabaseClient from "../config/supabase.js";
 import axios from "axios";
 import fs from "fs/promises";
+import * as fsSync from "fs";
 import crypto from "crypto";
 import path from "path";
 import { AILinkExtractor } from "./aiLinkExtractor.js";
@@ -50,12 +51,13 @@ export class WebsiteMonitor {
           `✅ Processing tariff document: ${link.type} v${link.version}`
         );
 
-        // Check if this document version already exists
+        // Check if this document version already exists in metadata
         const { data: existing } = await this.supabase
-          .from("document_versions")
+          .from("documents")
           .select("*")
-          .eq("document_type", link.type)
-          .eq("version", link.version)
+          .eq("metadata->>documentType", link.type)
+          .eq("metadata->>version", link.version)
+          .limit(1)
           .single();
 
         if (!existing) {
@@ -107,42 +109,17 @@ export class WebsiteMonitor {
       console.log(`📁 Creating directory: ${dir}`);
       await fs.mkdir(dir, { recursive: true });
 
-      const writer = fs.createWriteStream ? await fs.open(filePath, "w") : null;
+      // Simple stream to file
+      const writer = fsSync.createWriteStream(filePath);
+      response.data.pipe(writer);
 
-      if (writer) {
-        const writeStream = writer.createWriteStream();
-        response.data.pipe(writeStream);
-
-        return new Promise((resolve, reject) => {
-          writeStream.on("finish", async () => {
-            await writer.close();
-            console.log(`✅ Download completed: ${filePath}`);
-            resolve();
-          });
-          writeStream.on("error", async (error) => {
-            await writer.close();
-            reject(error);
-          });
+      return new Promise((resolve, reject) => {
+        writer.on("finish", () => {
+          console.log(`✅ Download completed: ${filePath}`);
+          resolve();
         });
-      } else {
-        // Fallback for older Node.js versions
-        const chunks = [];
-
-        return new Promise((resolve, reject) => {
-          response.data.on("data", (chunk) => chunks.push(chunk));
-          response.data.on("end", async () => {
-            try {
-              const buffer = Buffer.concat(chunks);
-              await fs.writeFile(filePath, buffer);
-              console.log(`✅ Download completed: ${filePath}`);
-              resolve();
-            } catch (error) {
-              reject(error);
-            }
-          });
-          response.data.on("error", reject);
-        });
-      }
+        writer.on("error", reject);
+      });
     } catch (error) {
       console.error(`❌ Download failed for ${url}:`, error);
       throw error;
@@ -178,45 +155,16 @@ export class WebsiteMonitor {
   async markDocumentAsProcessed(documentInfo) {
     try {
       console.log(
-        `📝 Marking document as processed: ${documentInfo.type} v${documentInfo.version}`
+        `📝 Document processing completed: ${documentInfo.type} v${documentInfo.version}`
       );
-
-      const { error } = await this.supabase.from("document_versions").upsert(
-        {
-          document_type: documentInfo.type,
-          version: documentInfo.version,
-          file_url: documentInfo.url,
-          file_hash: documentInfo.hash,
-          processed_at: new Date().toISOString(),
-          is_active: true,
-        },
-        {
-          onConflict: "document_type,version",
-          ignoreDuplicates: false, // Update existing record
-        }
-      );
-
-      if (error) {
-        // If it's a duplicate key error, log it but don't throw
-        if (error.code === "23505" || error.message.includes("duplicate key")) {
-          console.log(
-            `ℹ️ Document already marked as processed: ${documentInfo.type} v${documentInfo.version}`
-          );
-          return; // Exit gracefully
-        }
-        throw error;
-      }
-
-      console.log(
-        `✅ Document marked as processed: ${documentInfo.type} v${documentInfo.version}`
-      );
+      console.log("✅ Document metadata is now stored in documents table");
     } catch (error) {
-      console.error("❌ Error marking document as processed:", error);
+      console.error("❌ Error in document processing:", error);
       throw error;
     }
   }
 
-  // Comprehensive method for PDFMonitorScheduler
+  // Comprehensive method for PDFMonitorScheduler with retry mechanism
   async processAllNewDocuments() {
     try {
       console.log("🔍 Starting comprehensive document processing...");
@@ -231,33 +179,69 @@ export class WebsiteMonitor {
 
       console.log(`📋 Processing ${currentDocuments.length} new documents...`);
 
-      // 2. Process each document
+      // 2. Process each document with retry mechanism
       let processedCount = 0;
+      const failedDocuments = [];
+
       for (const docInfo of currentDocuments) {
-        try {
-          console.log(`🔄 Processing: ${docInfo.type} v${docInfo.version}`);
-          await this.processDocument(docInfo);
+        const success = await this.processDocumentWithRetry(docInfo, 3);
+        if (success) {
           processedCount++;
-          console.log(
-            `✅ Successfully processed: ${docInfo.type} v${docInfo.version}`
-          );
-        } catch (error) {
-          console.error(
-            `❌ Failed to process ${docInfo.type} v${docInfo.version}:`,
-            error.message
-          );
-          // Continue with next document even if one fails
+        } else {
+          failedDocuments.push(docInfo);
         }
       }
 
+      // 3. Report results
       console.log(
         `✅ Document processing completed: ${processedCount}/${currentDocuments.length} successful`
       );
+
+      if (failedDocuments.length > 0) {
+        console.warn(
+          `⚠️ ${failedDocuments.length} documents failed after all retries:`,
+          failedDocuments.map((d) => `${d.type} v${d.version}`).join(", ")
+        );
+      }
+
       return processedCount;
     } catch (error) {
       console.error("❌ Error in processAllNewDocuments:", error);
       throw error;
     }
+  }
+
+  // Process document with retry mechanism
+  async processDocumentWithRetry(docInfo, maxRetries = 3) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(
+          `🔄 Processing: ${docInfo.type} v${docInfo.version} (attempt ${attempt}/${maxRetries})`
+        );
+        await this.processDocument(docInfo);
+        console.log(
+          `✅ Successfully processed: ${docInfo.type} v${docInfo.version}`
+        );
+        return true;
+      } catch (error) {
+        console.error(
+          `❌ Failed to process ${docInfo.type} v${docInfo.version} (attempt ${attempt}/${maxRetries}):`,
+          error.message
+        );
+
+        if (attempt < maxRetries) {
+          const delay = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s, 8s
+          console.log(`⏳ Retrying in ${delay / 1000}s...`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        } else {
+          console.error(
+            `❌ Final failure for ${docInfo.type} v${docInfo.version} after ${maxRetries} attempts`
+          );
+          return false;
+        }
+      }
+    }
+    return false;
   }
 
   // Process individual document: download, extract, store, mark as processed
@@ -302,5 +286,219 @@ export class WebsiteMonitor {
         );
       }
     }
+  }
+
+  // NBR specific monitoring methods
+  async checkNBRUpdates() {
+    try {
+      console.log(`🔍 Checking for NBR tariff updates...`);
+
+      // Step 1: Check if year is updated
+      const yearCheck = await this.linkExtractor.checkNBRYearUpdate();
+
+      if (!yearCheck.success) {
+        console.log(`⚠️ NBR year check failed: ${yearCheck.error}`);
+        return { success: false, error: yearCheck.error };
+      }
+
+      console.log(`📅 Current NBR year: ${yearCheck.currentYear}`);
+
+      // Step 2: Check if we need to update
+      const needsUpdate = await this.shouldUpdateNBRChapters(
+        yearCheck.currentYear
+      );
+
+      if (!needsUpdate) {
+        console.log(
+          `✅ NBR chapters are up to date for year: ${yearCheck.currentYear}`
+        );
+        return { success: true, updated: false, year: yearCheck.currentYear };
+      }
+
+      // Step 3: Extract chapter links for current year
+      const chaptersData = await this.linkExtractor.extractNBRChapterLinks(
+        yearCheck.currentYear
+      );
+
+      if (!chaptersData.success) {
+        console.log(`⚠️ NBR chapters extraction failed: ${chaptersData.error}`);
+        return { success: false, error: chaptersData.error };
+      }
+
+      console.log(
+        `📋 Found ${chaptersData.chapters.length} NBR chapters to process`
+      );
+
+      // Step 4: Process the chapters
+      const result = await this.processNBRChapters(chaptersData);
+
+      return result;
+    } catch (error) {
+      console.error("❌ Error checking NBR updates:", error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async shouldUpdateNBRChapters(currentYear) {
+    try {
+      // Check if we have any chapters for this year (use version field consistently)
+      const { data: existingChapters } = await this.supabase
+        .from("chapter_documents")
+        .select("id")
+        .eq("metadata->>version", currentYear)
+        .limit(1);
+
+      // If no chapters exist for this year, we need to update
+      return !existingChapters || existingChapters.length === 0;
+    } catch (error) {
+      console.warn("⚠️ Error checking existing NBR chapters:", error);
+      return true; // Default to update if check fails
+    }
+  }
+
+  async processNBRChapters(chaptersData) {
+    try {
+      console.log(
+        `📄 Processing ${chaptersData.chapters.length} NBR chapters...`
+      );
+
+      let processedCount = 0;
+      let errorCount = 0;
+      const errors = [];
+      const failedChapters = [];
+
+      // First pass: Process all chapters with individual retries
+      for (const chapter of chaptersData.chapters) {
+        const success = await this.processNBRChapterWithRetry(
+          chapter,
+          chaptersData.year,
+          2
+        );
+        if (success) {
+          processedCount++;
+        } else {
+          errorCount++;
+          failedChapters.push(chapter);
+          errors.push({
+            chapter: chapter.chapter,
+            error: "Failed after initial retries",
+          });
+        }
+      }
+
+      console.log(
+        `📊 NBR Processing first pass complete: ${processedCount} success, ${errorCount} errors`
+      );
+
+      // Second pass: Final retry for failed chapters
+      if (failedChapters.length > 0) {
+        console.log(
+          `🔄 Final retry pass for ${failedChapters.length} failed chapters...`
+        );
+
+        const finalFailures = [];
+
+        for (const chapter of failedChapters) {
+          console.log(`🔄 Final retry for ${chapter.chapter}...`);
+          const success = await this.processNBRChapterWithRetry(
+            chapter,
+            chaptersData.year,
+            1
+          ); // Single final attempt
+          if (success) {
+            processedCount++;
+            errorCount--;
+            console.log(`✅ ${chapter.chapter} succeeded on final retry!`);
+            // Remove from errors array
+            const errorIndex = errors.findIndex(
+              (e) => e.chapter === chapter.chapter
+            );
+            if (errorIndex > -1) {
+              errors.splice(errorIndex, 1);
+            }
+          } else {
+            finalFailures.push(chapter.chapter);
+            console.log(`❌ ${chapter.chapter} failed final retry`);
+          }
+        }
+
+        if (finalFailures.length > 0) {
+          console.log(
+            `⚠️ ${
+              finalFailures.length
+            } chapters permanently failed: ${finalFailures.join(", ")}`
+          );
+        }
+      }
+
+      console.log(
+        `📊 NBR Processing complete: ${processedCount} success, ${errorCount} errors`
+      );
+
+      return {
+        success: true,
+        processed: processedCount,
+        errors: errorCount,
+        year: chaptersData.year,
+        details: errors,
+      };
+    } catch (error) {
+      console.error("❌ Error processing NBR chapters:", error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Process single NBR chapter with retry mechanism
+  async processNBRChapterWithRetry(chapter, year, maxRetries = 2) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(
+          `📄 Processing ${chapter.chapter} from ${chapter.pdfLink} (attempt ${attempt}/${maxRetries})`
+        );
+
+        // Download and process the chapter PDF
+        const tempPath = path.join(
+          process.cwd(),
+          "temp",
+          `nbr_${chapter.chapter}_${Date.now()}.pdf`
+        );
+
+        await this.downloadDocument(chapter.pdfLink, tempPath);
+
+        // Process with PDFProcessor for NBR chapters
+        const chapterInfo = {
+          type: "nbr_chapter",
+          chapter: chapter.chapter,
+          pdfLink: chapter.pdfLink,
+          year: year,
+          section: chapter.section,
+        };
+
+        await this.pdfProcessor.processNBRChapterPDF(tempPath, chapterInfo);
+
+        // Cleanup temp file
+        await fs.unlink(tempPath);
+
+        console.log(`✅ Successfully processed ${chapter.chapter}`);
+        return true;
+      } catch (error) {
+        console.error(
+          `❌ Error processing ${chapter.chapter} (attempt ${attempt}/${maxRetries}):`,
+          error
+        );
+
+        if (attempt < maxRetries) {
+          const delay = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s
+          console.log(`⏳ Retrying ${chapter.chapter} in ${delay / 1000}s...`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        } else {
+          console.error(
+            `❌ Final failure for ${chapter.chapter} after ${maxRetries} attempts`
+          );
+          return false;
+        }
+      }
+    }
+    return false;
   }
 }

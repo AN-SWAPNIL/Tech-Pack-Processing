@@ -44,6 +44,11 @@ export const hsCodeSuggestionSchema = Joi.object({
   confidence: Joi.number().min(0).max(1).required(),
   rationale: Joi.array().items(Joi.string()).required(),
   tariffInfo: tariffInfoSchema.optional(),
+  // NBR specific fields
+  source: Joi.string().valid("nbr", "customs", "mixed").optional(),
+  chapter: Joi.string().optional(),
+  pdfLink: Joi.string().uri().optional(),
+  year: Joi.string().optional(),
 }).required();
 
 // Common response schemas

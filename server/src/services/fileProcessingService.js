@@ -45,7 +45,7 @@ export const processFile = async (file) => {
 };
 
 /**
- * Extract text from PDF files
+ * Extract text from PDF files using multiple methods for best quality
  * @param {string} filePath - Path to the PDF file
  * @returns {Promise<string>} - Extracted text
  */
@@ -71,8 +71,8 @@ const extractFromPDF = async (filePath) => {
       console.warn("LangChain PDF extraction failed:", langchainError.message);
     }
 
-    // Fallback to pdf-parse
-    console.log("Fallback to pdf-parse");
+    // Method 3: Fallback to pdf-parse
+    console.log("📄 Fallback to pdf-parse");
     const { default: pdfParse } = await import("pdf-parse");
     const dataBuffer = await fs.readFile(filePath);
     const data = await pdfParse(dataBuffer);
@@ -81,10 +81,54 @@ const extractFromPDF = async (filePath) => {
       throw new Error("No text extracted from PDF");
     }
 
-    return data.text;
+    console.log(`✅ pdf-parse successful: ${data.text.length} characters`);
+    return cleanExtractedText(data.text);
   } catch (error) {
     throw new Error(`PDF extraction failed: ${error.message}`);
   }
+};
+
+/**
+ * Clean extracted text to fix broken words and OCR issues
+ * @param {string} text - Raw extracted text
+ * @returns {string} - Cleaned text
+ */
+const cleanExtractedText = (text) => {
+  if (!text) return "";
+
+  return (
+    text
+      // Remove decorative elements
+      .replace(/_{10,}/g, "\n")
+      .replace(/-{10,}/g, "\n")
+      .replace(/={10,}/g, "\n")
+
+      // Remove headers and footers
+      .replace(/_{3,}.*?Bangladesh.*?Customs.*?Tari?ff?.*?_{3,}/gi, "")
+      .replace(/^.*Bangladesh.*Customs.*Tariff.*$/gm, "")
+      .replace(/^\s*\d+\s*-\s*Bangladesh.*$/gm, "")
+      .replace(/^[\s\-_]*\d+[\s\-_]*$/gm, "")
+
+      // Fix broken words - be more careful about word boundaries
+      .replace(/\b([a-z])\s+([a-z]{2,})\b/g, "$1$2") // Fix broken words like "w eight" -> "weight"
+      .replace(/\b([a-z]{2,})\s+([a-z])\s+([a-z]{2,})\b/g, "$1$2$3") // Fix "indica ted" -> "indicated"
+      .replace(/\b([a-z]{2,})\s+([a-z]{1,2})\s+([a-z]{2,})\b/g, "$1$2$3") // Fix "preparati ons" -> "preparations"
+
+      // Fix specific OCR issues for HS codes
+      .replace(/(\d{4})\s*\.\s*(\d{2})\s*\.\s*(\d{2})/g, "$1.$2.$3") // Fix HS codes
+      .replace(/([A-Z])\s+([A-Z])\s*\.(\d)/g, "$1$2.$3") // Fix "H S . Code"
+
+      // Fix common formatting (preserve proper spacing)
+      .replace(/BDT\s+(\d+)/g, "BDT $1")
+      .replace(/(\d+)\s*%/g, "$1%")
+
+      // Normalize whitespace carefully
+      .replace(/[ \t]+/g, " ") // Multiple spaces to single space
+      .replace(/\n\s+/g, "\n") // Remove leading spaces after newlines
+      .replace(/\s+\n/g, "\n") // Remove trailing spaces before newlines
+      .replace(/\n{3,}/g, "\n\n") // Multiple newlines to double
+      .trim()
+  );
 };
 
 /**

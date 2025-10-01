@@ -9,7 +9,13 @@ import {
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Progress } from "./ui/progress";
-import { CheckCircle, Info, Loader2 } from "lucide-react";
+import {
+  CheckCircle,
+  Info,
+  Loader2,
+  ExternalLink,
+  FileText,
+} from "lucide-react";
 import { localStorageManager } from "../utils/localStorage";
 import type {
   HSCodeSuggestion,
@@ -194,10 +200,52 @@ export function HSCodeStep({ onNext, onBack, techPackData }: HSCodeStepProps) {
                         {selectedCode?.code === suggestion.code && (
                           <CheckCircle className="h-5 w-5 text-green-500" />
                         )}
+                        {/* Source Badge */}
+                        <Badge
+                          variant={
+                            suggestion.source === "nbr"
+                              ? "default"
+                              : "secondary"
+                          }
+                          className="text-xs"
+                        >
+                          {suggestion.source === "nbr"
+                            ? `NBR ${suggestion.year || "2025-2026"}`
+                            : suggestion.source === "customs"
+                            ? "Customs.gov.bd"
+                            : "Mixed Sources"}
+                        </Badge>
                       </div>
                       <p className="text-muted-foreground mb-3">
                         {suggestion.description}
                       </p>
+
+                      {/* NBR Chapter and PDF Link */}
+                      {suggestion.source === "nbr" &&
+                        (suggestion.chapter || suggestion.pdfLink) && (
+                          <div className="flex items-center gap-3 mb-3 text-sm">
+                            {suggestion.chapter && (
+                              <div className="flex items-center gap-1">
+                                <FileText className="h-4 w-4" />
+                                <span className="text-muted-foreground">
+                                  {suggestion.chapter}
+                                </span>
+                              </div>
+                            )}
+                            {suggestion.pdfLink && (
+                              <a
+                                href={suggestion.pdfLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                                <span>View PDF</span>
+                              </a>
+                            )}
+                          </div>
+                        )}
 
                       <div className="flex items-center gap-2 mb-3">
                         <span className="text-sm">Confidence</span>
@@ -253,6 +301,40 @@ export function HSCodeStep({ onNext, onBack, techPackData }: HSCodeStepProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {/* Source Information */}
+            {selectedCode.source && (
+              <div className="mb-4 p-3 bg-muted/30 rounded-lg">
+                <div className="text-sm font-medium">Data Source</div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Badge
+                    variant={
+                      selectedCode.source === "nbr" ? "default" : "secondary"
+                    }
+                  >
+                    {selectedCode.source === "nbr"
+                      ? `NBR ${selectedCode.year || "2025-2026"}`
+                      : selectedCode.source === "customs"
+                      ? "Customs.gov.bd"
+                      : "Mixed Sources"}
+                  </Badge>
+                  {selectedCode.chapter && (
+                    <span>• {selectedCode.chapter}</span>
+                  )}
+                  {selectedCode.pdfLink && (
+                    <a
+                      href={selectedCode.pdfLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      View Source PDF
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center p-3 bg-muted/50 rounded-lg">
                 <div className="text-sm text-muted-foreground">CD</div>

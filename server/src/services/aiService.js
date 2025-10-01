@@ -91,7 +91,7 @@ export const extractTechPackInfo = async (extractedText) => {
 
     // Initialize the model with correct model name for text processing
     const model = new ChatGoogleGenerativeAI({
-      modelName: "gemini-1.5-pro", // Use pro model for better analysis
+      modelName: "gemini-2.5-flash", // Use pro model for better analysis
       temperature: 0.1,
       apiKey: process.env.GEMINI_API_KEY,
     });

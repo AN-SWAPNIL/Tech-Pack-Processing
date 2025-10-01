@@ -98,16 +98,43 @@ export class PDFMonitorScheduler {
     try {
       console.log("🔍 Starting PDF update check...");
 
-      // Let WebsiteMonitor handle all document processing
+      // Primary: Check NBR updates first
+      console.log("🎯 Checking NBR tariff updates (primary source)...");
+      const nbrResult = await this.websiteMonitor.checkNBRUpdates();
+
+      if (nbrResult.success && nbrResult.processed > 0) {
+        console.log(
+          `✅ NBR update successful: ${nbrResult.processed} chapters processed`
+        );
+      } else if (!nbrResult.success) {
+        console.warn(`⚠️ NBR update failed: ${nbrResult.error}`);
+      } else {
+        console.log(`✅ NBR tariffs are up to date`);
+      }
+
+      // Fallback: Check customs.gov.bd updates
+      console.log("🔄 Checking customs.gov.bd updates (fallback source)...");
+
+      // Let WebsiteMonitor handle all customs document processing
       const processedCount = await this.websiteMonitor.processAllNewDocuments();
 
       if (processedCount === 0) {
-        console.log("✅ No new documents found");
+        console.log("✅ No new customs documents found");
       } else {
         console.log(
-          `✅ Successfully processed ${processedCount} new documents`
+          `✅ Successfully processed ${processedCount} new customs documents`
         );
       }
+
+      // Return combined status
+      const totalNBRProcessed = nbrResult.success
+        ? nbrResult.processed || 0
+        : 0;
+      const totalProcessed = totalNBRProcessed + processedCount;
+
+      console.log(
+        `📊 Total updates: ${totalProcessed} (NBR: ${totalNBRProcessed}, Customs: ${processedCount})`
+      );
     } catch (error) {
       console.error("❌ Error in PDF monitoring:", error);
       throw error;
@@ -118,9 +145,9 @@ export class PDFMonitorScheduler {
     try {
       console.log("❤️ Performing system health check...");
 
-      // Check database connectivity
+      // Check database connectivity using documents table
       const { data: dbTest, error: dbError } = await this.supabase
-        .from("document_versions")
+        .from("documents")
         .select("id")
         .limit(1);
 
@@ -140,16 +167,17 @@ export class PDFMonitorScheduler {
       const documentCount = documents?.length || 0;
       console.log(`📊 Database status: ${documentCount} documents stored`);
 
-      // Check for recent updates
-      const { data: recentVersions, error: versionError } = await this.supabase
-        .from("document_versions")
-        .select("*")
-        .eq("is_active", true)
-        .order("processed_at", { ascending: false })
+      // Check for recent documents using metadata
+      const { data: recentDocs, error: recentError } = await this.supabase
+        .from("documents")
+        .select("metadata, created_at")
+        .order("created_at", { ascending: false })
         .limit(5);
 
-      if (versionError) {
-        throw new Error(`Version check failed: ${versionError.message}`);
+      if (recentError) {
+        throw new Error(
+          `Recent documents check failed: ${recentError.message}`
+        );
       }
 
       console.log(
@@ -264,36 +292,172 @@ export class PDFMonitorScheduler {
     console.log("⚠️ Note: Scheduled tasks will continue until process restart");
   }
 
-  // Function to check if vector store is empty and populate if needed
+  // Function to check if vector stores are empty and populate if needed
   async checkAndPopulateVectorStore() {
     try {
-      console.log("🔍 Checking vector store status...");
+      console.log("🔍 Checking vector stores status...");
 
-      // Simple check: count documents in the table
-      const { count, error } = await this.supabase
-        .from("documents")
-        .select("id", { count: "exact" });
+      // Check if customs documents/tariff rates need processing (single call for both tables)
+      const needsCustomsUpdate =
+        (await this.isTableOutdatedOrEmpty("documents")) ||
+        (await this.isTableOutdatedOrEmpty("customs_tariff_rates"));
 
-      if (error) {
-        console.warn("⚠️ Vector store check failed:", error.message);
-        return;
+      // Check if NBR chapters need processing
+      const needsNBRUpdate = await this.isTableOutdatedOrEmpty(
+        "chapter_documents"
+      );
+
+      // Process customs documents once (populates both documents and customs_tariff_rates tables)
+      if (needsCustomsUpdate) {
+        console.log("🔄 Processing customs documents and tariff rates...");
+        try {
+          await this.websiteMonitor.processAllNewDocuments();
+          console.log("✅ Customs processing completed");
+        } catch (error) {
+          console.error("❌ Error processing customs documents:", error);
+        }
+      } else {
+        console.log("✅ Customs documents and tariff rates are up to date");
       }
 
-      if (count === 0) {
-        console.log(
-          "📊 Vector store is empty. Triggering automatic document processing..."
-        );
-
-        // Trigger document processing
-        await this.checkForPDFUpdatesWithRetry();
-
-        console.log("✅ Vector store initialization completed");
+      // Process NBR chapters separately
+      if (needsNBRUpdate) {
+        console.log("🔄 Processing NBR chapter documents...");
+        try {
+          await this.websiteMonitor.checkNBRUpdates();
+          console.log("✅ NBR chapter processing completed");
+        } catch (error) {
+          console.error("❌ Error processing NBR chapters:", error);
+        }
       } else {
-        console.log(`📊 Vector store has ${count} documents available`);
+        console.log("✅ NBR chapter documents are up to date");
+      }
+
+      console.log("✅ All vector store checks completed");
+    } catch (error) {
+      console.error("❌ Error checking vector stores:", error);
+      throw error;
+    }
+  }
+
+  async checkAndProcessTable(tableName, processingFunction) {
+    try {
+      const needsUpdate = await this.isTableOutdatedOrEmpty(tableName);
+
+      if (needsUpdate) {
+        console.log(`🔄 Processing ${tableName} table...`);
+        await processingFunction();
+        console.log(`✅ ${tableName} table processing completed`);
+      } else {
+        console.log(`✅ ${tableName} table is up to date`);
       }
     } catch (error) {
-      console.error("❌ Vector store check failed:", error.message);
-      // Don't fail server startup if vector store check fails
+      console.error(`❌ Error processing ${tableName} table:`, error);
+      // Don't throw - continue with other tables
+    }
+  }
+
+  async isTableOutdatedOrEmpty(tableName) {
+    try {
+      // Check if table is empty
+      const { count } = await this.supabase
+        .from(tableName)
+        .select("id", { count: "exact" });
+
+      if (count === 0) {
+        console.log(`📊 ${tableName} table is empty`);
+        return true;
+      }
+
+      // For each table type, get the current year from their respective sources
+      if (tableName === "documents" || tableName === "customs_tariff_rates") {
+        // For customs: Check if newer documents are available on customs website
+        const latestCustomsYear = await this.getLatestCustomsYear();
+        if (latestCustomsYear) {
+          const hasLatestYear = await this.hasDataForYear(
+            tableName,
+            latestCustomsYear,
+            "customs"
+          );
+          if (!hasLatestYear) {
+            console.log(
+              `📊 ${tableName} missing latest customs year: ${latestCustomsYear}`
+            );
+            return true;
+          }
+        }
+      } else if (tableName === "chapter_documents") {
+        // For NBR: Check if newer NBR year is available
+        const latestNBRYear = await this.getLatestNBRYear();
+        if (latestNBRYear) {
+          const hasLatestYear = await this.hasDataForYear(
+            tableName,
+            latestNBRYear,
+            "nbr"
+          );
+          if (!hasLatestYear) {
+            console.log(
+              `📊 ${tableName} missing latest NBR year: ${latestNBRYear}`
+            );
+            return true;
+          }
+        }
+      }
+
+      return false;
+    } catch (error) {
+      console.error(`❌ Error checking ${tableName}:`, error);
+      return true; // Default to update on error
+    }
+  }
+
+  async getLatestCustomsYear() {
+    try {
+      // Get year from latest customs documents via AI extraction
+      const links = await this.websiteMonitor.linkExtractor.extractPDFLinks(
+        process.env.CUSTOMS_TARIFF_URL
+      );
+      const tariffDocs = links.filter((link) => link.type === "tariff");
+      return tariffDocs.length > 0 ? tariffDocs[0].version : null;
+    } catch (error) {
+      console.warn("⚠️ Could not get latest customs year:", error.message);
+      return null;
+    }
+  }
+
+  async getLatestNBRYear() {
+    try {
+      // Get year from NBR website
+      const yearCheck =
+        await this.websiteMonitor.linkExtractor.checkNBRYearUpdate();
+      return yearCheck.success ? yearCheck.currentYear : null;
+    } catch (error) {
+      console.warn("⚠️ Could not get latest NBR year:", error.message);
+      return null;
+    }
+  }
+
+  async hasDataForYear(tableName, year, source) {
+    try {
+      let query;
+      if (tableName === "customs_tariff_rates") {
+        query = this.supabase
+          .from(tableName)
+          .select("id")
+          .eq("document_version", year);
+      } else {
+        // Use version field consistently for both documents and chapter_documents
+        query = this.supabase
+          .from(tableName)
+          .select("id")
+          .eq("metadata->>version", year);
+      }
+
+      const { data } = await query.limit(1);
+      return data && data.length > 0;
+    } catch (error) {
+      console.error(`❌ Error checking year data for ${tableName}:`, error);
+      return false;
     }
   }
 }

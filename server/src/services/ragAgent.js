@@ -15,7 +15,7 @@ export class RAGAgent {
       title: "HS Code Tariff Database",
     });
     this.llm = new ChatGoogleGenerativeAI({
-      modelName: "gemini-1.5-pro",
+      modelName: "gemini-2.5-flash",
       temperature: 0.1,
       apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
     });
@@ -37,11 +37,10 @@ Instructions:
 1. Analyze the provided tariff context to find relevant HS codes
 2. Consider the product specifications and material composition
 3. Provide AT LEAST {minSuggestions} most appropriate HS code suggestions with different codes (minimum of 5, or the number of context rows available, whichever is smaller)
-4. Extract exact tariff rates (CD, SD, VAT, AIT, RD, AT, TTI) from the context
-5. Include confidence levels and rationale
-6. Use ALL available context rows to provide diverse and comprehensive suggestions
-7. Return all suggestions with confidence >= 0.20 (20%) (this will only be applicable if AT LEAST {minSuggestions} suggestions is available)
-8. Sort suggestions by confidence score in descending order (highest confidence first)
+4. Include confidence levels and rationale
+5. Use ALL available context rows to provide diverse and comprehensive suggestions
+6. Return all suggestions with confidence >= 0.20 (20%) (this will only be applicable if AT LEAST {minSuggestions} suggestions is available)
+7. Sort suggestions by confidence score in descending order (highest confidence first)
 
 Response format (JSON only):
 {{
@@ -51,16 +50,7 @@ Response format (JSON only):
       "code": "string (e.g., 6109.10.00)",
       "description": "string",
       "confidence": number (0.00-1.00),
-      "rationale": ["string"],
-      "tariffInfo": {{
-        "CD": number,
-        "SD": number,
-        "VAT": number,
-        "AIT": number,
-        "RD": number,
-        "AT": number,
-        "TTI": number
-      }}
+      "rationale": ["string"]
     }}
   ]
 }}
@@ -163,18 +153,24 @@ Response:
       // Sort suggestions by confidence in descending order
       suggestions.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
 
+      // Enhance suggestions with NBR metadata and customs duty information
+      const enhancedSuggestions = await this.enhanceSuggestionsWithMetadata(
+        suggestions,
+        relevantDocs
+      );
+
       const expectedMinimum = Math.min(relevantDocs.length, 5); // Changed from 3 to 5
 
-      if (suggestions.length < expectedMinimum) {
+      if (enhancedSuggestions.length < expectedMinimum) {
         console.warn(
-          `⚠️ Generated ${suggestions.length} suggestions with >=15% confidence, expected minimum ${expectedMinimum}`
+          `⚠️ Generated ${enhancedSuggestions.length} suggestions with >=15% confidence, expected minimum ${expectedMinimum}`
         );
       }
 
       console.log(
-        `✅ Generated ${suggestions.length} HS code suggestions from ${relevantDocs.length} context rows (confidence >=15%, sorted by confidence)`
+        `✅ Generated ${enhancedSuggestions.length} HS code suggestions from ${relevantDocs.length} context rows (confidence >=15%, sorted by confidence)`
       );
-      return suggestions;
+      return enhancedSuggestions;
     } catch (error) {
       console.error("❌ RAG Agent error:", error);
       throw error;
@@ -429,26 +425,77 @@ HS code tariff customs classification Bangladesh apparel textile garment clothin
       // Generate query embedding with RETRIEVAL_QUERY task type
       const queryEmbedding = await this.embeddings.embedQuery(query);
 
-      // Primary search with full enhanced query
-      const { data, error } = await this.supabase.rpc("match_documents", {
-        query_embedding: queryEmbedding,
-        match_count: 15,
-        filter: { documentType: "tariff" },
-      });
+      // PRIMARY SEARCH: Try NBR chapter documents first
+      console.log(`🎯 Searching NBR chapter documents (primary)...`);
 
-      if (error) {
-        throw new Error(`Vector search failed: ${error.message}`);
-      }
-
-      let results = data || [];
-      console.log(
-        `📊 Primary vector search returned ${results.length} results`
+      const { data: nbrData, error: nbrError } = await this.supabase.rpc(
+        "match_chapter_documents",
+        {
+          query_embedding: queryEmbedding,
+          match_count: 15,
+          filter: {},
+        }
       );
 
-      // If we don't have enough results, try multiple alternative searches
+      let results = [];
+      let source = "nbr";
+
+      if (nbrError) {
+        console.warn(`⚠️ NBR search failed: ${nbrError.message}`);
+      } else if (nbrData && nbrData.length > 0) {
+        results = nbrData.map((doc) => ({
+          ...doc,
+          source: "nbr",
+        }));
+        console.log(`📊 NBR search returned ${results.length} results`);
+      }
+
+      // FALLBACK SEARCH: If NBR search fails or returns insufficient results
+      if (results.length < 5) {
+        console.log(
+          `🔄 NBR results insufficient (${results.length}), falling back to customs documents...`
+        );
+
+        const { data: customsData, error: customsError } =
+          await this.supabase.rpc("match_documents", {
+            query_embedding: queryEmbedding,
+            match_count: 15,
+            filter: { documentType: "tariff" },
+          });
+
+        if (customsError) {
+          console.error(
+            `❌ Customs fallback search failed: ${customsError.message}`
+          );
+          if (results.length === 0) {
+            throw new Error(`Both NBR and customs vector searches failed`);
+          }
+        } else if (customsData && customsData.length > 0) {
+          const customsResults = customsData.map((doc) => ({
+            ...doc,
+            source: "customs",
+          }));
+
+          // Combine NBR and customs results, prioritizing NBR
+          results = [...results, ...customsResults];
+          source = results.some((r) => r.source === "nbr")
+            ? "mixed"
+            : "customs";
+
+          console.log(
+            `📊 Combined search returned ${results.length} results (NBR: ${
+              results.filter((r) => r.source === "nbr").length
+            }, Customs: ${
+              results.filter((r) => r.source === "customs").length
+            })`
+          );
+        }
+      }
+
+      // If still not enough results, try alternative search strategies
       if (results.length < 8) {
         console.log(
-          `🔍 Insufficient results (${results.length}), trying alternative searches...`
+          `🔍 Still insufficient results (${results.length}), trying alternative searches...`
         );
 
         // Extract key terms from the enhanced query for focused searches
@@ -585,62 +632,114 @@ HS code tariff customs classification Bangladesh apparel textile garment clothin
     }
   }
 
-  // Method to get database status
-  async getDatabaseStatus() {
-    try {
-      const { data: versions, error: versionsError } = await this.supabase
-        .from("document_versions")
-        .select("*")
-        .eq("is_active", true)
-        .order("processed_at", { ascending: false });
+  // // Method to get database status
+  // async getDatabaseStatus() {
+  //   try {
+  //     // Get unique document types and versions from metadata
+  //     const { data: documents, error: documentsError } = await this.supabase
+  //       .from("documents")
+  //       .select("metadata")
+  //       .order("created_at", { ascending: false });
 
-      if (versionsError) {
-        throw versionsError;
-      }
+  //     if (documentsError) {
+  //       throw documentsError;
+  //     }
 
-      const { data: documentsCount, error: countError } = await this.supabase
-        .from("documents")
-        .select("id", { count: "exact" });
+  //     // Extract version info from metadata
+  //     const versions = documents
+  //       .filter((doc) => doc.metadata?.version && doc.metadata?.documentType)
+  //       .map((doc) => ({
+  //         document_type: doc.metadata.documentType,
+  //         version: doc.metadata.version,
+  //         file_url: doc.metadata.fileUrl,
+  //         processed_at: doc.metadata.created_at || new Date().toISOString(),
+  //         is_active: true,
+  //       }))
+  //       .filter(
+  //         (v, i, arr) =>
+  //           // Remove duplicates based on document_type and version
+  //           arr.findIndex(
+  //             (item) =>
+  //               item.document_type === v.document_type &&
+  //               item.version === v.version
+  //           ) === i
+  //       );
 
-      if (countError) {
-        throw countError;
-      }
+  //     const { data: documentsCount, error: countError } = await this.supabase
+  //       .from("documents")
+  //       .select("id", { count: "exact" });
 
-      return {
-        activeVersions: versions || [],
-        totalDocuments: documentsCount?.length || 0,
-        lastUpdated: versions?.[0]?.processed_at || null,
-      };
-    } catch (error) {
-      console.error("❌ Database status error:", error);
-      throw error;
-    }
-  }
+  //     if (countError) {
+  //       throw countError;
+  //     }
+
+  //     return {
+  //       activeVersions: versions || [],
+  //       totalDocuments: documentsCount?.length || 0,
+  //       lastUpdated: versions?.[0]?.processed_at || null,
+  //     };
+  //   } catch (error) {
+  //     console.error("❌ Database status error:", error);
+  //     throw error;
+  //   }
+  // }
 
   // Method to check vector store and populate if empty
   async checkVectorStoreAndPopulate() {
     try {
-      // Simple check: count documents in the table
-      const { count, error } = await this.supabase
-        .from("documents")
-        .select("id", { count: "exact" });
+      // Check documents table (customs tariff documents)
+      const { count: documentsCount, error: documentsError } =
+        await this.supabase.from("documents").select("id", { count: "exact" });
 
-      if (error) {
-        console.warn("⚠️ Vector store check failed:", error.message);
-        return;
+      if (documentsError) {
+        console.warn(
+          "⚠️ Documents table check failed:",
+          documentsError.message
+        );
       }
 
-      if (count === 0) {
-        console.log(
-          "📊 Vector store is empty. Triggering PDF monitor to fetch latest tariff documents..."
+      // Check chapter_documents table (NBR tariff documents)
+      const { count: chapterCount, error: chapterError } = await this.supabase
+        .from("chapter_documents")
+        .select("id", { count: "exact" });
+
+      if (chapterError) {
+        console.warn(
+          "⚠️ Chapter documents table check failed:",
+          chapterError.message
         );
+      }
+
+      const documentsEmpty = documentsCount === 0;
+      const chapterDocumentsEmpty = chapterCount === 0;
+
+      if (documentsEmpty || chapterDocumentsEmpty) {
+        console.log(
+          `📊 Vector stores status - Documents: ${
+            documentsCount || 0
+          }, Chapter Documents: ${chapterCount || 0}`
+        );
+
+        if (documentsEmpty) {
+          console.log(
+            "📊 Documents table is empty. Triggering PDF monitor for customs tariff documents..."
+          );
+        }
+
+        if (chapterDocumentsEmpty) {
+          console.log(
+            "📊 Chapter documents table is empty. Triggering NBR chapter processing..."
+          );
+        }
 
         const pdfScheduler = new PDFMonitorScheduler();
         await pdfScheduler.checkForPDFUpdatesWithRetry();
 
-        console.log("✅ Vector store populated from RAG agent");
+        console.log("✅ Vector stores populated from RAG agent");
       } else {
-        console.log(`📊 Vector store has ${count} documents available`);
+        console.log(
+          `📊 Vector stores available - Documents: ${documentsCount}, Chapter Documents: ${chapterCount}`
+        );
       }
     } catch (error) {
       console.error("❌ Vector store check failed:", error.message);
@@ -664,6 +763,109 @@ HS code tariff customs classification Bangladesh apparel textile garment clothin
     } catch (error) {
       console.error("❌ Error triggering PDF monitor:", error);
       throw error;
+    }
+  }
+
+  // Enhance suggestions with NBR metadata and tariff info from database
+  async enhanceSuggestionsWithMetadata(suggestions, relevantDocs) {
+    try {
+      console.log(
+        `🔗 Enhancing ${suggestions.length} suggestions with metadata and tariff info...`
+      );
+
+      const enhancedSuggestions = [];
+
+      for (const suggestion of suggestions) {
+        let enhancedSuggestion = { ...suggestion };
+
+        // Use the code field (which contains the HS code)
+        const hsCode = suggestion.code;
+
+        // Find the most relevant document for this suggestion
+        const relevantDoc =
+          relevantDocs.find(
+            (doc) =>
+              doc.content &&
+              hsCode &&
+              doc.content.toLowerCase().includes(hsCode.toLowerCase())
+          ) || relevantDocs[0]; // Fallback to first doc if no exact match
+
+        // Add NBR source information
+        if (relevantDoc && relevantDoc.source) {
+          enhancedSuggestion.source = relevantDoc.source;
+
+          // Add NBR specific metadata if available
+          if (relevantDoc.source === "nbr" && relevantDoc.metadata) {
+            enhancedSuggestion.chapter = relevantDoc.metadata.chapter;
+            enhancedSuggestion.pdfLink = relevantDoc.metadata.pdfLink;
+            enhancedSuggestion.year = relevantDoc.metadata.year;
+          }
+        } else {
+          enhancedSuggestion.source = "customs"; // Default fallback
+        }
+
+        // Fetch tariff information from customs_tariff_rates table
+        if (hsCode) {
+          try {
+            const { data: tariffData } = await this.supabase
+              .from("customs_tariff_rates")
+              .select("*")
+              .eq("hs_code", hsCode)
+              .single();
+
+            if (tariffData) {
+              enhancedSuggestion.tariffInfo = {
+                CD: tariffData.cd || 0,
+                SD: tariffData.sd || 0,
+                VAT: tariffData.vat || 0,
+                AIT: tariffData.ait || 0,
+                RD: tariffData.rd || 0,
+                AT: tariffData.at || 0,
+                TTI: tariffData.tti || 0,
+              };
+              console.log(`📊 Found tariff info for HS code ${hsCode}`);
+            } else {
+              console.warn(`⚠️ No tariff info found for HS code ${hsCode}`);
+              // Set default values if no tariff data found
+              enhancedSuggestion.tariffInfo = {
+                CD: 0,
+                SD: 0,
+                VAT: 0,
+                AIT: 0,
+                RD: 0,
+                AT: 0,
+                TTI: 0,
+              };
+            }
+          } catch (tariffError) {
+            console.warn(
+              `⚠️ Error fetching tariff info for HS code ${hsCode}:`,
+              tariffError.message
+            );
+            // Set default values on error
+            enhancedSuggestion.tariffInfo = {
+              CD: 0,
+              SD: 0,
+              VAT: 0,
+              AIT: 0,
+              RD: 0,
+              AT: 0,
+              TTI: 0,
+            };
+          }
+        }
+
+        enhancedSuggestions.push(enhancedSuggestion);
+      }
+
+      console.log(
+        `✅ Enhanced ${enhancedSuggestions.length} suggestions with metadata and tariff info`
+      );
+      return enhancedSuggestions;
+    } catch (error) {
+      console.error("❌ Error enhancing suggestions with metadata:", error);
+      // Return original suggestions if enhancement fails
+      return suggestions;
     }
   }
 }
