@@ -21,6 +21,7 @@ export default function App() {
   const [techPackData, setTechPackData] = useState<TechPackSummary | null>(
     null
   );
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [hsCodeData, setHSCodeData] = useState<HSCodeSuggestion | null>(null);
   const [complianceData, setComplianceData] = useState<ComplianceData | null>(
     null
@@ -31,9 +32,26 @@ export default function App() {
   useEffect(() => {
     const storedData = localStorageManager.loadStoredData();
 
+    // Restore file from localStorage if available
+    if (storedData.fileInfo) {
+      // Try to recreate file if we have the data
+      if (storedData.fileInfo.dataUrl) {
+        localStorageManager.createFileFromStoredInfo(storedData.fileInfo)
+          .then(recreatedFile => {
+            if (recreatedFile) {
+              setUploadedFile(recreatedFile);
+            }
+          })
+          .catch(error => {
+            console.warn("Could not recreate file from stored data:", error);
+          });
+      }
+      setCompletedSteps((prev) => (prev.includes(1) ? prev : [...prev, 1]));
+    }
+
     if (storedData.techPackData) {
       setTechPackData(storedData.techPackData);
-      setCompletedSteps((prev) => (prev.includes(1) ? prev : [...prev, 1]));
+      setCompletedSteps((prev) => (prev.includes(2) ? prev : [...prev, 2]));
     }
 
     if (storedData.hsCodeData) {
@@ -86,18 +104,16 @@ export default function App() {
     }
   };
 
-  const handleUploadNext = (summary: TechPackSummary, file?: File) => {
-    setTechPackData(summary);
-    if (file) {
-      localStorageManager.saveTechPackData(summary, file);
-    }
+  const handleUploadNext = async (file?: File) => {
+    setUploadedFile(file || null);
+    await localStorageManager.saveFileInfo(file!);
     handleStepComplete(1);
     setCurrentStep(2);
   };
 
   const handleTechPackNext = (techPackData: TechPackSummary) => {
     setTechPackData(techPackData);
-    localStorageManager.saveTechPackData(techPackData, undefined as any);
+    localStorageManager.saveTechPackData(techPackData);
     handleStepComplete(2);
     setCurrentStep(3);
   };
@@ -130,6 +146,7 @@ export default function App() {
   const handleClearData = () => {
     localStorageManager.clearAllData();
     setTechPackData(null);
+    setUploadedFile(null);
     setHSCodeData(null);
     setComplianceData(null);
     setCompletedSteps([]);
@@ -193,6 +210,7 @@ export default function App() {
           <UploadStep
             onNext={handleUploadNext}
             initialData={techPackData}
+            uploadedFile={uploadedFile}
             onClearData={handleClearData}
           />
         )}
@@ -202,6 +220,7 @@ export default function App() {
             onNext={handleTechPackNext}
             onBack={handleBack}
             techPackData={techPackData}
+            uploadedFile={uploadedFile}
           />
         )}
 

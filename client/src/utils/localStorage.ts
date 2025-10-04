@@ -39,7 +39,10 @@ class LocalStorageManager {
     console.log(`🧹 Clearing data for steps after step ${updatedStep}`);
 
     switch (updatedStep) {
-      case 1: // Upload updated - clear tech pack, HS code and compliance data
+      case 1: // Upload updated - clear tech pack, HS code and compliance data (but keep file info)
+        // Don't call clearAllData() - it would remove the file info we just saved
+        // Instead, clear only the downstream data
+        this.clearTechPackData();
         this.clearHSCodeData();
         this.clearHSCodeSuggestions();
         this.clearComplianceData();
@@ -61,28 +64,34 @@ class LocalStorageManager {
     }
   }
 
-  // Save tech pack data and file info with cascading clear
-  saveTechPackData(data: TechPackSummary, file?: File): void {
+  // Save tech pack data with cascading clear
+  saveTechPackData(data: TechPackSummary): void {
     try {
-      // Check if techPackData has actually changed
-      const existingData = this.getItem<TechPackSummary>(
-        STORAGE_KEYS.TECH_PACK_DATA
-      );
-      const dataChanged =
-        !existingData || JSON.stringify(existingData) !== JSON.stringify(data);
-
-      // Only clear subsequent steps if data actually changed
-      if (dataChanged) {
-        if (file) {
-          this.clearSubsequentSteps(1); // Upload step - clear everything
-        } else {
-          this.clearSubsequentSteps(2); // Tech pack edit - only clear HS codes and compliance
-        }
-      }
+      // Clear HS codes and compliance when tech pack data is updated
+      this.clearSubsequentSteps(2); // Tech pack edit - only clear HS codes and compliance
 
       localStorage.setItem(STORAGE_KEYS.TECH_PACK_DATA, JSON.stringify(data));
 
-      if (file) {
+      console.log("💾 Tech pack data saved to localStorage");
+    } catch (error) {
+      console.warn("⚠️ Failed to save tech pack data to localStorage:", error);
+    }
+  }
+
+  // Save file info only (called from UploadStep after file validation)
+  saveFileInfo(file: File): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        console.log("📥 saveFileInfo called with:", {
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          sizeInMB: (file.size / 1024 / 1024).toFixed(2),
+        });
+
+        // Clear all data when a new file is uploaded
+        this.clearSubsequentSteps(1); // New upload - clear everything
+
         const fileInfo: FileInfo = {
           name: file.name,
           size: file.size,
@@ -92,37 +101,70 @@ class LocalStorageManager {
 
         // For small files (< 1MB), store base64 data for complete restoration
         if (file.size < 1024 * 1024) {
+          console.log("📖 File is < 1MB, reading as base64...");
           const reader = new FileReader();
+
           reader.onload = () => {
+            console.log("✅ FileReader onload triggered");
             fileInfo.dataUrl = reader.result as string;
+            console.log("📊 DataUrl length:", fileInfo.dataUrl?.length || 0);
+
             localStorage.setItem(
               STORAGE_KEYS.TECH_PACK_FILE_INFO,
               JSON.stringify(fileInfo)
             );
+            console.log(
+              "💾 File info saved to localStorage (with base64 data)"
+            );
+
+            // Verify it was saved
+            const saved = localStorage.getItem(
+              STORAGE_KEYS.TECH_PACK_FILE_INFO
+            );
+            const parsed = saved ? JSON.parse(saved) : null;
+            console.log("✔️ Verification - dataUrl exists:", !!parsed?.dataUrl);
+
+            resolve();
           };
+
+          reader.onerror = (error) => {
+            console.error("❌ FileReader error:", error);
+            console.warn("⚠️ Failed to read file data");
+            // Still save file info without dataUrl
+            localStorage.setItem(
+              STORAGE_KEYS.TECH_PACK_FILE_INFO,
+              JSON.stringify(fileInfo)
+            );
+            console.log("💾 File info saved to localStorage (without base64)");
+            resolve();
+          };
+
+          console.log("🚀 Starting FileReader.readAsDataURL()...");
           reader.readAsDataURL(file);
         } else {
+          console.log("⚠️ File is >= 1MB, saving without base64");
           localStorage.setItem(
             STORAGE_KEYS.TECH_PACK_FILE_INFO,
             JSON.stringify(fileInfo)
           );
+          console.log(
+            "💾 File info saved to localStorage (too large for base64)"
+          );
+          resolve();
         }
+      } catch (error) {
+        console.error("❌ Exception in saveFileInfo:", error);
+        console.warn("⚠️ Failed to save file info to localStorage:", error);
+        reject(error);
       }
-
-      console.log(
-        "💾 Tech pack data saved to localStorage" +
-          (dataChanged ? " (data changed)" : " (no changes)")
-      );
-    } catch (error) {
-      console.warn("⚠️ Failed to save tech pack data to localStorage:", error);
-    }
+    });
   }
 
   // Save HS code data with cascading clear
   saveHSCodeData(data: HSCodeSuggestion): void {
     try {
       // Clear subsequent steps when step 2 data is updated
-      this.clearSubsequentSteps(2);
+      this.clearSubsequentSteps(3);
 
       localStorage.setItem(STORAGE_KEYS.HS_CODE_DATA, JSON.stringify(data));
       console.log("💾 HS code data saved to localStorage");
@@ -135,7 +177,7 @@ class LocalStorageManager {
   saveHSCodeSuggestions(suggestions: HSCodeSuggestion[]): void {
     try {
       // Clear subsequent steps when HS code suggestions are updated
-      this.clearSubsequentSteps(2);
+      this.clearSubsequentSteps(3);
 
       localStorage.setItem(
         STORAGE_KEYS.HS_CODE_SUGGESTIONS,
@@ -154,7 +196,7 @@ class LocalStorageManager {
   saveComplianceData(data: ComplianceData): void {
     try {
       // Update step when compliance data is saved
-      this.clearSubsequentSteps(3);
+      this.clearSubsequentSteps(4);
 
       localStorage.setItem(STORAGE_KEYS.COMPLIANCE_DATA, JSON.stringify(data));
       console.log("💾 Compliance data saved to localStorage");
@@ -293,10 +335,23 @@ class LocalStorageManager {
   clearHSCodeData(): void {
     try {
       localStorage.removeItem(STORAGE_KEYS.HS_CODE_DATA);
-      localStorage.removeItem(STORAGE_KEYS.HS_CODE_SUGGESTIONS);
+      // localStorage.removeItem(STORAGE_KEYS.HS_CODE_SUGGESTIONS);
       console.log("🧹 HS code data cleared from localStorage");
     } catch (error) {
       console.warn("⚠️ Failed to clear HS code data from localStorage:", error);
+    }
+  }
+
+  // Clear tech pack data only
+  clearTechPackData(): void {
+    try {
+      localStorage.removeItem(STORAGE_KEYS.TECH_PACK_DATA);
+      console.log("🧹 Tech pack data cleared from localStorage");
+    } catch (error) {
+      console.warn(
+        "⚠️ Failed to clear tech pack data from localStorage:",
+        error
+      );
     }
   }
 

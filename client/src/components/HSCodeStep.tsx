@@ -58,6 +58,11 @@ export function HSCodeStep({ onNext, onBack, techPackData }: HSCodeStepProps) {
           `🔄 Restoring selected HS code: ${storedData.hsCodeData.code}`
         );
         setSelectedCode(storedData.hsCodeData);
+      } else {
+        // Auto-select the first suggestion if nothing was previously selected
+        console.log(`✅ Auto-selecting first HS code suggestion`);
+        setSelectedCode(storedData.hsCodeSuggestions[0]);
+        localStorageManager.saveHSCodeData(storedData.hsCodeSuggestions[0]);
       }
     } else {
       console.log(
@@ -90,9 +95,16 @@ export function HSCodeStep({ onNext, onBack, techPackData }: HSCodeStepProps) {
       const generatedSuggestions = response.data?.hsCodeSuggestions || [];
       setSuggestions(generatedSuggestions);
 
-      // Save suggestions to localStorage
+      // Save suggestions to localStorage and auto-select the first one
       if (generatedSuggestions.length > 0) {
         localStorageManager.saveHSCodeSuggestions(generatedSuggestions);
+
+        // Auto-select the first suggestion
+        console.log(
+          `✅ Auto-selecting first HS code: ${generatedSuggestions[0].code}`
+        );
+        setSelectedCode(generatedSuggestions[0]);
+        localStorageManager.saveHSCodeData(generatedSuggestions[0]);
       }
     } catch (err) {
       console.error("Error generating HS code suggestions:", err);

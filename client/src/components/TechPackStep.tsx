@@ -25,21 +25,25 @@ import {
   Package,
   AlertCircle,
   Trash2,
+  Loader2,
 } from "lucide-react";
 import { localStorageManager } from "../utils/localStorage";
 import type { TechPackSummary } from "../types";
 import { GARMENT_TYPE_OPTIONS } from "../types";
+import api, { ApiError } from "../services/api";
 
 interface TechPackStepProps {
   onNext: (techPackData: TechPackSummary) => void;
   onBack: () => void;
   techPackData: TechPackSummary | null;
+  uploadedFile?: File | null;
 }
 
 export function TechPackStep({
   onNext,
   onBack,
   techPackData,
+  uploadedFile,
 }: TechPackStepProps) {
   const [description, setDescription] = useState("");
   const [garmentType, setGarmentType] = useState("");
@@ -53,6 +57,8 @@ export function TechPackStep({
   const [countryOfOrigin, setCountryOfOrigin] = useState("");
   const [destinationMarket, setDestinationMarket] = useState("");
   const [incoterm, setIncoterm] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingError, setProcessingError] = useState<string | null>(null);
 
   const genderOptions = ["Men", "Women", "Unisex", "Infant", "Kids"];
 
@@ -112,6 +118,87 @@ export function TechPackStep({
       }
     }
   }, [techPackData]);
+
+  // Process uploaded file when component loads
+  useEffect(() => {
+    const processUploadedFile = async () => {
+      // Only process if we have a file and no existing data
+      if (!uploadedFile || techPackData) return;
+
+      // Check if we already have this data in localStorage
+      const storedData = localStorageManager.loadStoredData();
+      if (
+        storedData.techPackData &&
+        storedData.fileInfo?.name === uploadedFile.name &&
+        storedData.fileInfo?.lastModified === uploadedFile.lastModified
+      ) {
+        console.log("🔄 File already processed, using stored data");
+        // Data will be loaded by the previous useEffect
+        return;
+      }
+
+      setIsProcessing(true);
+      setProcessingError(null);
+
+      try {
+        console.log("📤 Processing file with backend:", uploadedFile.name);
+        const response = await api.uploadTechPack(uploadedFile);
+
+        if (!response.success) {
+          throw new Error(response.message || "Failed to process file");
+        }
+
+        if (response.data && response.data.techPackSummary) {
+          const extractedData = response.data.techPackSummary;
+
+          // Update form fields with extracted data
+          setDescription(extractedData.description || "");
+          setFabricType(extractedData.fabricType || "knit");
+          setGender(extractedData.gender || "");
+          setMaterialPercentage(extractedData.materialPercentage || []);
+          setGsm(extractedData.gsm);
+          setCountryOfOrigin(extractedData.countryOfOrigin || "");
+          setDestinationMarket(extractedData.destinationMarket || "");
+          setIncoterm(extractedData.incoterm || "");
+
+          // Handle garment type
+          const isPredefinedType = GARMENT_TYPE_OPTIONS.includes(
+            extractedData.garmentType as any
+          );
+          if (isPredefinedType) {
+            setGarmentType(extractedData.garmentType);
+            setCustomGarmentType("");
+          } else {
+            setGarmentType("Custom");
+            setCustomGarmentType(extractedData.garmentType || "");
+          }
+
+          // Save to localStorage
+          localStorageManager.saveTechPackData(extractedData);
+
+          console.log("✅ File processed and saved to localStorage");
+        } else {
+          throw new Error("Invalid response format");
+        }
+      } catch (error) {
+        console.error("Error processing file:", error);
+
+        if (error instanceof ApiError) {
+          setProcessingError(
+            `Processing Error (${error.status}): ${error.message}`
+          );
+        } else {
+          setProcessingError(
+            error instanceof Error ? error.message : "Failed to process file"
+          );
+        }
+      } finally {
+        setIsProcessing(false);
+      }
+    };
+
+    processUploadedFile();
+  }, [uploadedFile, techPackData]);
 
   const handleMaterialChange = (
     index: number,
@@ -180,284 +267,333 @@ export function TechPackStep({
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Basic Information Card */}
+      {/* Processing State - Show ONLY loading card, hide all forms */}
+      {isProcessing ? (
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ShirtIcon className="h-5 w-5" />
-              Basic Information
-            </CardTitle>
-            <CardDescription>
-              Core product details and construction
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Garment Type */}
-            <div>
-              <Label htmlFor="garmentType">Garment Type *</Label>
-              <Select value={garmentType} onValueChange={setGarmentType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select garment type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {GARMENT_TYPE_OPTIONS.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Custom Garment Type - shown only when Custom is selected */}
-            {garmentType === "Custom" && (
-              <div>
-                <Label htmlFor="customGarmentType">Custom Garment Type *</Label>
-                <Input
-                  id="customGarmentType"
-                  placeholder="Enter custom garment type"
-                  value={customGarmentType}
-                  onChange={(e) => setCustomGarmentType(e.target.value)}
-                />
-              </div>
-            )}
-
-            {/* Construction Type */}
-            <div>
-              <Label htmlFor="fabricType">Construction Type *</Label>
-              <Select
-                value={fabricType}
-                onValueChange={(value: "knit" | "woven") =>
-                  setFabricType(value)
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select construction type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="knit">Knit</SelectItem>
-                  <SelectItem value="woven">Woven</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Gender Category */}
-            <div>
-              <Label htmlFor="gender">Gender/Age Category *</Label>
-              <Select value={gender} onValueChange={setGender}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select gender category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {genderOptions.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* GSM */}
-            <div>
-              <Label htmlFor="gsm">GSM (Grams per Square Meter)</Label>
-              <Input
-                id="gsm"
-                type="number"
-                placeholder="e.g., 180"
-                value={gsm || ""}
-                onChange={(e) =>
-                  setGsm(parseFloat(e.target.value) || undefined)
-                }
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Fabric weight affects HS classification
-              </p>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <p>Extracting product details from your file...</p>
             </div>
           </CardContent>
         </Card>
-
-        {/* Fabric Composition Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Ruler className="h-5 w-5" />
-              Fabric Composition
-            </CardTitle>
-            <CardDescription>
-              Material breakdown (must total 100%)
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>
-                Fiber Composition *
-                <Badge
-                  variant={isValidPercentage ? "secondary" : "destructive"}
-                  className="ml-2"
-                >
-                  Total: {totalPercentage.toFixed(1)}%
-                </Badge>
-              </Label>
-
-              {materialPercentage.map((item, index) => (
-                <div key={index} className="flex gap-2 items-start">
+      ) : (
+        <>
+          {/* Processing Error */}
+          {processingError && (
+            <Card className="border-red-200 bg-red-50">
+              <CardContent className="pt-6">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
                   <div className="flex-1">
+                    <p className="font-medium text-red-900">
+                      Processing Failed
+                    </p>
+                    <p className="text-sm text-red-700 mt-1">
+                      {processingError}
+                    </p>
+                    <p className="text-sm text-red-600 mt-2">
+                      You can still enter the details manually below.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Basic Information Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShirtIcon className="h-5 w-5" />
+                  Basic Information
+                </CardTitle>
+                <CardDescription>
+                  Core product details and construction
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Garment Type */}
+                <div>
+                  <Label htmlFor="garmentType">Garment Type *</Label>
+                  <Select value={garmentType} onValueChange={setGarmentType}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select garment type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {GARMENT_TYPE_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Custom Garment Type - shown only when Custom is selected */}
+                {garmentType === "Custom" && (
+                  <div>
+                    <Label htmlFor="customGarmentType">
+                      Custom Garment Type *
+                    </Label>
                     <Input
-                      placeholder="Material (e.g., Cotton)"
-                      value={item.material}
-                      onChange={(e) =>
-                        handleMaterialChange(index, "material", e.target.value)
-                      }
+                      id="customGarmentType"
+                      placeholder="Enter custom garment type"
+                      value={customGarmentType}
+                      onChange={(e) => setCustomGarmentType(e.target.value)}
                     />
                   </div>
-                  <div className="w-24">
-                    <Input
-                      type="number"
-                      placeholder="%"
-                      value={item.percentage || ""}
-                      onChange={(e) =>
-                        handleMaterialChange(
-                          index,
-                          "percentage",
-                          parseFloat(e.target.value) || 0
-                        )
-                      }
-                    />
-                  </div>
+                )}
+
+                {/* Construction Type */}
+                <div>
+                  <Label htmlFor="fabricType">Construction Type *</Label>
+                  <Select
+                    value={fabricType}
+                    onValueChange={(value: "knit" | "woven") =>
+                      setFabricType(value)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select construction type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="knit">Knit</SelectItem>
+                      <SelectItem value="woven">Woven</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Gender Category */}
+                <div>
+                  <Label htmlFor="gender">Gender/Age Category *</Label>
+                  <Select value={gender} onValueChange={setGender}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select gender category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {genderOptions.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* GSM */}
+                <div>
+                  <Label htmlFor="gsm">GSM (Grams per Square Meter)</Label>
+                  <Input
+                    id="gsm"
+                    type="number"
+                    placeholder="e.g., 180"
+                    value={gsm || ""}
+                    onChange={(e) =>
+                      setGsm(parseFloat(e.target.value) || undefined)
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Fabric weight affects HS classification
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Fabric Composition Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Ruler className="h-5 w-5" />
+                  Fabric Composition
+                </CardTitle>
+                <CardDescription>
+                  Material breakdown (must total 100%)
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>
+                    Fiber Composition *
+                    <Badge
+                      variant={isValidPercentage ? "secondary" : "destructive"}
+                      className="ml-2"
+                    >
+                      Total: {totalPercentage.toFixed(1)}%
+                    </Badge>
+                  </Label>
+
+                  {materialPercentage.map((item, index) => (
+                    <div key={index} className="flex gap-2 items-start">
+                      <div className="flex-1">
+                        <Input
+                          placeholder="Material (e.g., Cotton)"
+                          value={item.material}
+                          onChange={(e) =>
+                            handleMaterialChange(
+                              index,
+                              "material",
+                              e.target.value
+                            )
+                          }
+                        />
+                      </div>
+                      <div className="w-24">
+                        <Input
+                          type="number"
+                          placeholder="%"
+                          value={item.percentage || ""}
+                          onChange={(e) =>
+                            handleMaterialChange(
+                              index,
+                              "percentage",
+                              parseFloat(e.target.value) || 0
+                            )
+                          }
+                        />
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => removeMaterial(index)}
+                        disabled={materialPercentage.length <= 1}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+
                   <Button
                     variant="outline"
-                    size="icon"
-                    onClick={() => removeMaterial(index)}
-                    disabled={materialPercentage.length <= 1}
+                    size="sm"
+                    onClick={addMaterial}
+                    className="w-full"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    Add Material
                   </Button>
+
+                  {!isValidPercentage && materialPercentage.length > 0 && (
+                    <div className="flex items-center gap-2 text-sm text-destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>Material percentages must sum to 100%</span>
+                    </div>
+                  )}
                 </div>
-              ))}
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={addMaterial}
-                className="w-full"
-              >
-                Add Material
-              </Button>
-
-              {!isValidPercentage && materialPercentage.length > 0 && (
-                <div className="flex items-center gap-2 text-sm text-destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <span>Material percentages must sum to 100%</span>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Product Summary Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            Product Summary
-          </CardTitle>
-          <CardDescription>
-            Detailed product description for classification
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div>
-            <Label htmlFor="description">Product Description *</Label>
-            <Textarea
-              id="description"
-              placeholder="Example: Men's 100% cotton jersey T-shirt, 180 GSM, crew neck, short sleeves"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Trade Information Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Globe className="h-5 w-5" />
-            Trade Information
-          </CardTitle>
-          <CardDescription>
-            Origin, destination, and shipping terms
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid md:grid-cols-3 gap-4">
-          {/* Country of Origin */}
-          <div>
-            <Label htmlFor="countryOfOrigin">Country of Origin</Label>
-            <Select value={countryOfOrigin} onValueChange={setCountryOfOrigin}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select country" />
-              </SelectTrigger>
-              <SelectContent>
-                {countryOptions.map((country) => (
-                  <SelectItem key={country.value} value={country.value}>
-                    {country.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Destination Market */}
-          <div>
-            <Label htmlFor="destinationMarket">Destination Market</Label>
-            <Select
-              value={destinationMarket}
-              onValueChange={setDestinationMarket}
+          {/* Product Summary Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Product Summary
+              </CardTitle>
+              <CardDescription>
+                Detailed product description for classification
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div>
+                <Label htmlFor="description">Product Description *</Label>
+                <Textarea
+                  id="description"
+                  placeholder="Example: Men's 100% cotton jersey T-shirt, 180 GSM, crew neck, short sleeves"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Trade Information Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Globe className="h-5 w-5" />
+                Trade Information
+              </CardTitle>
+              <CardDescription>
+                Origin, destination, and shipping terms
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid md:grid-cols-3 gap-4">
+              {/* Country of Origin */}
+              <div>
+                <Label htmlFor="countryOfOrigin">Country of Origin</Label>
+                <Select
+                  value={countryOfOrigin}
+                  onValueChange={setCountryOfOrigin}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select country" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {countryOptions.map((country) => (
+                      <SelectItem key={country.value} value={country.value}>
+                        {country.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Destination Market */}
+              <div>
+                <Label htmlFor="destinationMarket">Destination Market</Label>
+                <Select
+                  value={destinationMarket}
+                  onValueChange={setDestinationMarket}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select destination" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {destinationOptions.map((dest) => (
+                      <SelectItem key={dest.value} value={dest.value}>
+                        {dest.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Incoterm */}
+              <div>
+                <Label htmlFor="incoterm">Incoterm</Label>
+                <Select value={incoterm} onValueChange={setIncoterm}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select incoterm" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {incotermOptions.map((term) => (
+                      <SelectItem key={term.value} value={term.value}>
+                        {term.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={onBack}>
+              Back
+            </Button>
+            <Button
+              onClick={handleNext}
+              disabled={!isFormValid}
+              className="flex-1"
             >
-              <SelectTrigger>
-                <SelectValue placeholder="Select destination" />
-              </SelectTrigger>
-              <SelectContent>
-                {destinationOptions.map((dest) => (
-                  <SelectItem key={dest.value} value={dest.value}>
-                    {dest.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              Continue to HS Code Suggestions
+            </Button>
           </div>
-
-          {/* Incoterm */}
-          <div>
-            <Label htmlFor="incoterm">Incoterm</Label>
-            <Select value={incoterm} onValueChange={setIncoterm}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select incoterm" />
-              </SelectTrigger>
-              <SelectContent>
-                {incotermOptions.map((term) => (
-                  <SelectItem key={term.value} value={term.value}>
-                    {term.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="flex gap-3">
-        <Button variant="outline" onClick={onBack}>
-          Back
-        </Button>
-        <Button onClick={handleNext} disabled={!isFormValid} className="flex-1">
-          Continue to HS Code Suggestions
-        </Button>
-      </div>
+        </>
+      )}
     </div>
   );
 }

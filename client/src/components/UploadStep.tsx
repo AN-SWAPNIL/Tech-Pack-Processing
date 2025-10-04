@@ -21,32 +21,60 @@ import type { TechPackSummary, TechPackUploadResponse } from "../types";
 import api, { ApiError } from "../services/api";
 
 interface UploadStepProps {
-  onNext: (summary: TechPackSummary, file?: File) => void;
+  onNext: (file?: File) => Promise<void>;
   initialData?: TechPackSummary | null;
+  uploadedFile?: File | null;
   onClearData?: () => void;
 }
 
 export function UploadStep({
   onNext,
   initialData,
+  uploadedFile: uploadedFileProp,
   onClearData,
 }: UploadStepProps) {
   const [file, setFile] = useState<File | null>(null);
+  const [fileInfo, setFileInfo] = useState<{
+    name: string;
+    size: number;
+    type: string;
+  } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [summary, setSummary] = useState<TechPackSummary | null>(
-    initialData || null
-  );
   const [error, setError] = useState<string | null>(null);
   const [isFromStorage, setIsFromStorage] = useState(false);
   const [isUploaded, setIsUploaded] = useState(false);
 
-  // Load file info from localStorage on component mount
+  // Load file info from localStorage on component mount or use prop
   useEffect(() => {
+    // If uploadedFile is provided as prop, use it
+    if (uploadedFileProp) {
+      setFile(uploadedFileProp);
+      setFileInfo({
+        name: uploadedFileProp.name,
+        size: uploadedFileProp.size,
+        type: uploadedFileProp.type,
+      });
+      setIsUploaded(true);
+      setIsFromStorage(true);
+      return;
+    }
+
+    // Otherwise, try to load from localStorage
     const loadStoredFile = async () => {
       const storedData = localStorageManager.loadStoredData();
 
-      if (storedData.fileInfo && storedData.techPackData) {
+      // Load file if it exists (even if techPackData doesn't exist yet)
+      if (storedData.fileInfo) {
+        console.log("📂 Found file info in localStorage:", storedData.fileInfo);
         setIsFromStorage(true);
+        setIsUploaded(true); // Mark as uploaded if we have file info from storage
+
+        // Store file info for display
+        setFileInfo({
+          name: storedData.fileInfo.name,
+          size: storedData.fileInfo.size,
+          type: storedData.fileInfo.type,
+        });
 
         // Try to recreate file if we have the data
         if (storedData.fileInfo.dataUrl) {
@@ -57,25 +85,27 @@ export function UploadStep({
               );
             if (recreatedFile) {
               setFile(recreatedFile);
+              console.log("✅ File object recreated from localStorage");
             }
           } catch (error) {
             console.warn("Could not recreate file from stored data:", error);
           }
+        } else {
+          console.log("⚠️ No dataUrl found - file info only (no File object)");
         }
       }
     };
 
     loadStoredFile();
-  }, []);
+  }, [uploadedFileProp]);
 
-  // Update summary when initialData changes
+  // Update state when initialData changes
   useEffect(() => {
-    if (initialData && !summary) {
-      setSummary(initialData);
+    if (initialData) {
       setIsFromStorage(true);
       setIsUploaded(true); // Mark as uploaded if we have data from storage
     }
-  }, [initialData, summary]);
+  }, [initialData]);
 
   const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const uploadedFile = event.target.files?.[0];
@@ -95,61 +125,60 @@ export function UploadStep({
   };
 
   const processFile = async (file: File) => {
+    // Just validate file - don't process with backend yet
     setIsProcessing(true);
     setError(null);
-    setIsFromStorage(false); // New upload, not from storage
+    setIsFromStorage(false);
 
     try {
-      // Check if we already have this data in localStorage
-      const storedData = localStorageManager.loadStoredData();
-      if (storedData.techPackData && storedData.fileInfo?.name === file.name) {
-        console.log("🔄 File already processed, using stored data");
-        setSummary(storedData.techPackData);
-        setIsUploaded(true);
-        return;
+      // Basic file validation
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      const allowedTypes = [
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      ];
+
+      if (file.size > maxSize) {
+        throw new Error("File size exceeds 10MB limit");
       }
 
-      // Call API to process file
-      const response = await api.uploadTechPack(file);
-
-      if (!response.success) {
-        throw new Error(response.message || "Failed to process file");
-      }
-
-      if (response.data && response.data.techPackSummary) {
-        const techPackData = response.data.techPackSummary;
-        setSummary(techPackData);
-
-        // Save to localStorage immediately
-        localStorageManager.saveTechPackData(techPackData, file);
-        setIsUploaded(true);
-
-        console.log("✅ File processed and saved to localStorage");
-      } else {
-        throw new Error("Invalid response format");
-      }
-    } catch (error) {
-      console.error("Error processing file:", error);
-
-      if (error instanceof ApiError) {
-        setError(`Upload Error (${error.status}): ${error.message}`);
-      } else {
-        setError(
-          error instanceof Error ? error.message : "Failed to process file"
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error(
+          "Invalid file type. Please upload PDF, DOC, DOCX, XLS, or XLSX files"
         );
       }
+
+      // File is valid - save file info to localStorage
+      setIsUploaded(true);
+      setFileInfo({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+      });
+
+      console.log("✅ File validated successfully");
+    } catch (error) {
+      console.error("Error validating file:", error);
+      setError(
+        error instanceof Error ? error.message : "Failed to validate file"
+      );
+      setIsUploaded(false);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleNext = () => {
-    if (summary && isUploaded) {
-      onNext(summary, file || undefined);
+  const handleNext = async () => {
+    // Pass file if we have it, or allow proceeding with just fileInfo
+    if ((file || fileInfo) && isUploaded) {
+      // Pass the file to next step if available
+      // TechPackStep will process it and get the data
+      await onNext(file || undefined);
     }
-  };
-
-  // const handleReupload = () => {
+  }; // const handleReupload = () => {
   //   setFile(null);
   //   setSummary(null);
   //   setError(null);
@@ -206,7 +235,7 @@ export function UploadStep({
               onChange={handleFileUpload}
             />
 
-            {!file ? (
+            {!file && !fileInfo ? (
               <div className="space-y-4">
                 <Upload className="h-12 w-12 mx-auto text-muted-foreground" />
                 <div>
@@ -220,9 +249,14 @@ export function UploadStep({
               <div className="space-y-4">
                 <FileText className="h-12 w-12 mx-auto text-primary" />
                 <div>
-                  <p className="text-sm">{file.name}</p>
+                  <p className="text-sm">{fileInfo?.name || file?.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {(file.size / 1024 / 1024).toFixed(1)} MB
+                    {(
+                      (fileInfo?.size || file?.size || 0) /
+                      1024 /
+                      1024
+                    ).toFixed(1)}{" "}
+                    MB
                   </p>
                 </div>
                 {isUploaded && (
@@ -249,7 +283,7 @@ export function UploadStep({
       )}
 
       {/* File Information Card - shown after successful upload */}
-      {isUploaded && file && !isProcessing && (
+      {isUploaded && (file || fileInfo) && !isProcessing && (
         <Card className="border-green-200 bg-green-50/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -264,19 +298,25 @@ export function UploadStep({
             <div className="grid md:grid-cols-4 gap-4">
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">File Name</p>
-                <p className="text-sm font-medium">{file.name}</p>
+                <p className="text-sm font-medium">
+                  {fileInfo?.name || file?.name}
+                </p>
               </div>
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">File Size</p>
                 <p className="text-sm font-medium">
-                  {(file.size / 1024).toFixed(1)} KB
+                  {((fileInfo?.size || file?.size || 0) / 1024).toFixed(1)} KB
                 </p>
               </div>
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">File Type</p>
                 <p className="text-sm font-medium">
-                  {file.type ||
-                    file.name.split(".").pop()?.toUpperCase() ||
+                  {fileInfo?.type ||
+                    file?.type ||
+                    (fileInfo?.name || file?.name)
+                      ?.split(".")
+                      .pop()
+                      ?.toUpperCase() ||
                     "Unknown"}
                 </p>
               </div>
@@ -324,9 +364,9 @@ export function UploadStep({
       )}
 
       {/* Show continue button when file is uploaded successfully, or skip button when no file */}
-      {isUploaded && summary ? (
+      {isUploaded ? (
         <div className="flex gap-3">
-          <Button onClick={handleNext} className="w-full">
+          <Button onClick={async () => await handleNext()} className="w-full">
             Continue to Tech Pack Details
           </Button>
         </div>
@@ -334,19 +374,7 @@ export function UploadStep({
         <div className="flex gap-3">
           <Button
             variant="outline"
-            onClick={() =>
-              onNext({
-                materialPercentage: [],
-                fabricType: "knit",
-                garmentType: "",
-                gender: "",
-                description: "",
-                gsm: undefined,
-                countryOfOrigin: "",
-                destinationMarket: "",
-                incoterm: "",
-              })
-            }
+            onClick={async () => await onNext()}
             className="w-full"
           >
             Skip Upload - Enter Details Manually
