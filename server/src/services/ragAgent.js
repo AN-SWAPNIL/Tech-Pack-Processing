@@ -32,6 +32,10 @@ Product Information:
 - Materials: {materials}
 - Gender: {gender}
 - Description: {description}
+- GSM: {gsm}
+- Country of Origin: {countryOfOrigin}
+- Destination Market: {destinationMarket}
+- Incoterm: {incoterm}
 
 Instructions:
 1. Analyze the provided tariff context to find relevant HS codes
@@ -115,6 +119,10 @@ Response:
           .join(", "),
         gender: techPackInfo.gender,
         description: techPackInfo.description,
+        gsm: techPackInfo.gsm || "Not specified",
+        countryOfOrigin: techPackInfo.countryOfOrigin || "Not specified",
+        destinationMarket: techPackInfo.destinationMarket || "Not specified",
+        incoterm: techPackInfo.incoterm || "Not specified",
       });
 
       // Parse JSON response - handle AIMessage object from LangChain
@@ -214,10 +222,14 @@ You are an expert in textile industry terminology and Bangladesh customs HS code
 
 Product Information:
 - Garment Type: {garmentType}
-- Faasync bric Type: {fabricType} 
+- Fabric Type: {fabricType}
 - Materials: {materials}
 - Gender: {gender}
 - Description: {description}
+- GSM: {gsm}
+- Country of Origin: {countryOfOrigin}
+- Destination Market: {destinationMarket}
+- Incoterm: {incoterm}
 
 Original Search Query: {originalQuery}
 
@@ -247,6 +259,10 @@ Focus on terms that would appear in official tariff classifications.
             .join(", "),
           gender: techPackInfo.gender,
           description: techPackInfo.description,
+          gsm: techPackInfo.gsm || "Not specified",
+          countryOfOrigin: techPackInfo.countryOfOrigin || "Not specified",
+          destinationMarket: techPackInfo.destinationMarket || "Not specified",
+          incoterm: techPackInfo.incoterm || "Not specified",
           originalQuery,
         })
       );
@@ -433,6 +449,10 @@ Product Details:
       .join(", ")}
 - Gender: ${techPackInfo.gender}
 - Description: ${techPackInfo.description}
+- GSM: ${techPackInfo.gsm || "Not specified"}
+- Country of Origin: ${techPackInfo.countryOfOrigin || "Not specified"}
+- Destination Market: ${techPackInfo.destinationMarket || "Not specified"}
+- Incoterm: ${techPackInfo.incoterm || "Not specified"}
 
 AI-Generated Search Alternatives:
 ${allAlternatives.join(" ")}
@@ -460,7 +480,7 @@ HS code tariff customs classification Bangladesh apparel textile garment clothin
         "match_chapter_documents",
         {
           query_embedding: queryEmbedding,
-          match_count: 15,
+          match_count: 10,
           filter: {},
         }
       );

@@ -70,7 +70,7 @@ export function HSCodeStep({ onNext, onBack, techPackData }: HSCodeStepProps) {
         generateHSCodeSuggestions();
       }
     }
-  }, [techPackData]);
+  }, []); // Remove techPackData dependency - only run once on mount
 
   const generateHSCodeSuggestions = async () => {
     if (!techPackData) return;
@@ -145,12 +145,11 @@ export function HSCodeStep({ onNext, onBack, techPackData }: HSCodeStepProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2>Step 2: HS Code Suggestions</h2>
+          <h2>Step 3: HS Code Suggestions</h2>
           <p className="text-muted-foreground">
             Select the most appropriate HS code for your product
           </p>
-        </div>
-
+        </div>{" "}
         {isFromStorage && !isLoading && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span className="w-2 h-2 bg-green-500 rounded-full"></span>

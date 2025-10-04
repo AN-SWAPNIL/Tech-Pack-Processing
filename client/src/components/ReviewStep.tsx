@@ -82,7 +82,7 @@ export function ReviewStep({ onBack, onEdit }: ReviewStepProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2>Step 5: Review & Lock</h2>
+          <h2>Step 6: Review & Lock</h2>
           <p className="text-muted-foreground">
             Final review before locking the export documentation
           </p>

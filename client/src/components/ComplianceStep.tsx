@@ -103,7 +103,7 @@ export function ComplianceStep({ onNext, onBack }: ComplianceStepProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h2>Step 3: Compliance Check</h2>
+        <h2>Step 4: Compliance Check</h2>
         <p className="text-muted-foreground">
           Configure destination and compliance requirements
         </p>

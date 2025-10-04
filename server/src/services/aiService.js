@@ -13,7 +13,11 @@ Respond with a JSON object in this exact format:
     "fabricType": "knit" or "woven",
     "garmentType": "string",
     "gender": "string",
-    "description": "string"
+    "description": "string",
+    "gsm": number or null,
+    "countryOfOrigin": "string" or null,
+    "destinationMarket": "string" or null,
+    "incoterm": "string" or null
   }
 }
 
@@ -34,6 +38,10 @@ Field requirements:
   * Key garment characteristics for customs classification
   * Avoid excessive detail - focus on HS code classification factors
   * Example: "Men's denim jeans, cotton twill weave construction"
+- gsm: Extract fabric weight in grams per square meter if mentioned, otherwise null
+- countryOfOrigin: Extract manufacturing/production country if mentioned, otherwise null
+- destinationMarket: Extract target market, export destination, or customer location if mentioned, otherwise null
+- incoterm: Extract international commercial terms (FOB, CIF, EXW, etc.) if mentioned, otherwise null
 `;
 
 // Create the prompt template
@@ -60,16 +68,20 @@ Important Guidelines:
    - Key characteristics relevant for customs classification
    - Garment type and basic construction
    - Keep it brief and professional for HS code purposes
-6. For specialty fabrics (non-woven, lace, braided, felt), mention these details in the description while classifying fabricType as the nearest knit/woven equivalent
-7. If information is unclear, make reasonable inferences based on industry standards and context clues
-8. For HS code purposes, be precise about material percentages as they affect classification
-9. Include technical details that would be important for customs classification and quality assessment
-10. CRITICAL: Always extract material information from ANY textile content - analyze fabric descriptions, construction details, and technical specifications. If absolutely NO material information can be found, return success=false
-11. Use contextual analysis to infer missing fields:
+6. Extract fabric weight (GSM) if mentioned in the document
+7. Extract country of origin/manufacturing location if mentioned
+8. Extract destination market, target market, or export destination if mentioned
+9. Extract international commercial terms (Incoterms) like FOB, CIF, EXW, DDP, etc. if mentioned
+10. For specialty fabrics (non-woven, lace, braided, felt), mention these details in the description while classifying fabricType as the nearest knit/woven equivalent
+11. If information is unclear, make reasonable inferences based on industry standards and context clues
+12. For HS code purposes, be precise about material percentages as they affect classification
+13. Include technical details that would be important for customs classification and quality assessment
+14. CRITICAL: Always extract material information from ANY textile content - analyze fabric descriptions, construction details, and technical specifications. If absolutely NO material information can be found, return success=false
+15. Use contextual analysis to infer missing fields:
     - Gender: Look for sizing charts, fit descriptions, style names, target market indicators
     - Materials: Search for any fabric mentions, fiber content, blend descriptions, or construction details
     - FabricType: Analyze construction methods, weave/knit descriptions, fabric names
-12. If explicit percentages unavailable, provide educated estimates based on typical industry standards for the garment type
+16. If explicit percentages unavailable, provide educated estimates based on typical industry standards for the garment type
 
 Use your expertise in textile classification and HS code requirements to provide accurate, detailed information.
 
@@ -589,6 +601,10 @@ const fallbackAnalysis = async (text) => {
       garmentType,
       gender,
       description: `${gender} ${garmentType.toLowerCase()}, ${constructionDetails}${characteristicsText}`,
+      gsm: null, // No GSM extraction in fallback
+      countryOfOrigin: null, // No origin extraction in fallback
+      destinationMarket: null, // No destination extraction in fallback
+      incoterm: null, // No incoterm extraction in fallback
     },
   };
 };

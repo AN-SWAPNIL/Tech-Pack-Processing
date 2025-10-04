@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { StepNavigation } from "./components/StepNavigation";
 import { UploadStep } from "./components/UploadStep";
+import { TechPackStep } from "./components/TechPackStep";
 import { HSCodeStep } from "./components/HSCodeStep";
 import { ComplianceStep } from "./components/ComplianceStep";
 import { GenerateStep } from "./components/GenerateStep";
@@ -37,22 +38,22 @@ export default function App() {
 
     if (storedData.hsCodeData) {
       setHSCodeData(storedData.hsCodeData);
-      setCompletedSteps((prev) => (prev.includes(2) ? prev : [...prev, 2]));
+      setCompletedSteps((prev) => (prev.includes(3) ? prev : [...prev, 3]));
     }
 
     if (storedData.complianceData) {
       setComplianceData(storedData.complianceData);
-      setCompletedSteps((prev) => (prev.includes(3) ? prev : [...prev, 3]));
+      setCompletedSteps((prev) => (prev.includes(4) ? prev : [...prev, 4]));
     }
 
     // Set current step based on what data we have
     let targetStep = 1;
     if (storedData.complianceData) {
-      targetStep = 3; // Go to generate step
+      targetStep = 4; // Go to generate step
     } else if (storedData.hsCodeData) {
-      targetStep = 2; // Go to compliance step
+      targetStep = 3; // Go to compliance step
     } else if (storedData.techPackData) {
-      targetStep = 1; // Go to HS code step
+      targetStep = 2; // Go to tech pack step
     }
 
     if (targetStep > 1) {
@@ -94,23 +95,30 @@ export default function App() {
     setCurrentStep(2);
   };
 
+  const handleTechPackNext = (techPackData: TechPackSummary) => {
+    setTechPackData(techPackData);
+    localStorageManager.saveTechPackData(techPackData, undefined as any);
+    handleStepComplete(2);
+    setCurrentStep(3);
+  };
+
   const handleHSCodeNext = (selectedCode: HSCodeSuggestion) => {
     setHSCodeData(selectedCode);
     localStorageManager.saveHSCodeData(selectedCode);
-    handleStepComplete(2);
-    setCurrentStep(3);
+    handleStepComplete(3);
+    setCurrentStep(4);
   };
 
   const handleComplianceNext = (data: ComplianceData) => {
     setComplianceData(data);
     localStorageManager.saveComplianceData(data);
-    handleStepComplete(3);
-    setCurrentStep(4);
+    handleStepComplete(4);
+    setCurrentStep(5);
   };
 
   const handleGenerateNext = () => {
-    handleStepComplete(4);
-    setCurrentStep(5);
+    handleStepComplete(5);
+    setCurrentStep(6);
   };
 
   const handleBack = () => {
@@ -190,6 +198,14 @@ export default function App() {
         )}
 
         {currentStep === 2 && (
+          <TechPackStep
+            onNext={handleTechPackNext}
+            onBack={handleBack}
+            techPackData={techPackData}
+          />
+        )}
+
+        {currentStep === 3 && (
           <HSCodeStep
             onNext={handleHSCodeNext}
             onBack={handleBack}
@@ -197,15 +213,15 @@ export default function App() {
           />
         )}
 
-        {currentStep === 3 && (
+        {currentStep === 4 && (
           <ComplianceStep onNext={handleComplianceNext} onBack={handleBack} />
         )}
 
-        {currentStep === 4 && (
+        {currentStep === 5 && (
           <GenerateStep onNext={handleGenerateNext} onBack={handleBack} />
         )}
 
-        {currentStep === 5 && (
+        {currentStep === 6 && (
           <ReviewStep
             onBack={handleBack}
             onEdit={(step) => setCurrentStep(step)}

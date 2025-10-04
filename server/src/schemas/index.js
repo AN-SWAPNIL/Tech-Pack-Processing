@@ -12,6 +12,7 @@ export const uploadSchema = Joi.object({
 
 // Validation schema for tech pack summary (matches frontend TechPackSummary interface)
 export const techPackSchema = Joi.object({
+  // Existing core fields (keeping same names)
   materialPercentage: Joi.array()
     .items(
       Joi.object({
@@ -24,6 +25,12 @@ export const techPackSchema = Joi.object({
   garmentType: Joi.string().required(),
   gender: Joi.string().required(),
   description: Joi.string().required(),
+
+  // New optional fields
+  gsm: Joi.number().optional().allow(null),
+  countryOfOrigin: Joi.string().optional().allow(null, ""),
+  destinationMarket: Joi.string().optional().allow(null, ""),
+  incoterm: Joi.string().optional().allow(null, ""),
 }).unknown(true); // Allow additional properties
 
 // Validation schema for tariff information

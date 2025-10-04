@@ -38,6 +38,7 @@ export function UploadStep({
   );
   const [error, setError] = useState<string | null>(null);
   const [isFromStorage, setIsFromStorage] = useState(false);
+  const [isUploaded, setIsUploaded] = useState(false);
 
   // Load file info from localStorage on component mount
   useEffect(() => {
@@ -72,6 +73,7 @@ export function UploadStep({
     if (initialData && !summary) {
       setSummary(initialData);
       setIsFromStorage(true);
+      setIsUploaded(true); // Mark as uploaded if we have data from storage
     }
   }, [initialData, summary]);
 
@@ -94,11 +96,20 @@ export function UploadStep({
 
   const processFile = async (file: File) => {
     setIsProcessing(true);
-    setError(null); // Clear any previous errors
-    setSummary(null); // Clear any previous summary
+    setError(null);
     setIsFromStorage(false); // New upload, not from storage
 
     try {
+      // Check if we already have this data in localStorage
+      const storedData = localStorageManager.loadStoredData();
+      if (storedData.techPackData && storedData.fileInfo?.name === file.name) {
+        console.log("🔄 File already processed, using stored data");
+        setSummary(storedData.techPackData);
+        setIsUploaded(true);
+        return;
+      }
+
+      // Call API to process file
       const response = await api.uploadTechPack(file);
 
       if (!response.success) {
@@ -106,12 +117,14 @@ export function UploadStep({
       }
 
       if (response.data && response.data.techPackSummary) {
-        setSummary(response.data.techPackSummary);
+        const techPackData = response.data.techPackSummary;
+        setSummary(techPackData);
+
         // Save to localStorage immediately
-        localStorageManager.saveTechPackData(
-          response.data.techPackSummary,
-          file
-        );
+        localStorageManager.saveTechPackData(techPackData, file);
+        setIsUploaded(true);
+
+        console.log("✅ File processed and saved to localStorage");
       } else {
         throw new Error("Invalid response format");
       }
@@ -131,7 +144,7 @@ export function UploadStep({
   };
 
   const handleNext = () => {
-    if (summary) {
+    if (summary && isUploaded) {
       onNext(summary, file || undefined);
     }
   };
@@ -156,7 +169,7 @@ export function UploadStep({
         <div>
           <h2>Step 1: Upload Tech Pack</h2>
           <p className="text-muted-foreground">
-            Drop your tech pack for instant parsing and analysis
+            Upload your tech pack file for processing and analysis
           </p>
         </div>
 
@@ -175,8 +188,7 @@ export function UploadStep({
             Tech Pack Upload
           </CardTitle>
           <CardDescription>
-            Upload your tech pack file for automatic parsing and material
-            analysis
+            Upload your tech pack file for automatic parsing and analysis
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -213,6 +225,12 @@ export function UploadStep({
                     {(file.size / 1024 / 1024).toFixed(1)} MB
                   </p>
                 </div>
+                {isUploaded && (
+                  <div className="flex items-center justify-center gap-2 text-green-600">
+                    <CheckCircle className="w-4 h-4" />
+                    <span className="text-sm">File processed successfully</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -225,6 +243,49 @@ export function UploadStep({
             <div className="flex items-center gap-3">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
               <span>Processing tech pack...</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* File Information Card - shown after successful upload */}
+      {isUploaded && file && !isProcessing && (
+        <Card className="border-green-200 bg-green-50/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              File Uploaded Successfully
+            </CardTitle>
+            <CardDescription>
+              Your tech pack has been processed and is ready for review
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-4 gap-4">
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">File Name</p>
+                <p className="text-sm font-medium">{file.name}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">File Size</p>
+                <p className="text-sm font-medium">
+                  {(file.size / 1024).toFixed(1)} KB
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">File Type</p>
+                <p className="text-sm font-medium">
+                  {file.type ||
+                    file.name.split(".").pop()?.toUpperCase() ||
+                    "Unknown"}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Status</p>
+                <Badge variant="default" className="bg-green-600">
+                  Processed
+                </Badge>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -262,101 +323,35 @@ export function UploadStep({
         </Card>
       )}
 
-      {summary && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-green-500" />
-              Parse Summary
-              {isFromStorage && (
-                <Badge variant="secondary" className="ml-auto">
-                  📂 Loaded from previous session
-                </Badge>
-              )}
-            </CardTitle>
-            {isFromStorage && (
-              <CardDescription>
-                Your previous tech pack data has been restored. You can continue
-                or upload a new file.
-              </CardDescription>
-            )}
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <label className="text-sm text-muted-foreground">
-                  Material
-                </label>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {summary.materialPercentage?.map((item, idx) => (
-                    <Badge key={idx} variant="secondary">
-                      {item.material} {item.percentage}%
-                    </Badge>
-                  )) || <Badge variant="secondary">No material data</Badge>}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm text-muted-foreground">
-                  Fabric Type
-                </label>
-                <div className="mt-1">
-                  <Badge variant="outline">{summary.fabricType}</Badge>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm text-muted-foreground">
-                  Garment Type
-                </label>
-                <div className="mt-1">
-                  <Badge variant="outline">{summary.garmentType}</Badge>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm text-muted-foreground">Gender</label>
-                <div className="mt-1">
-                  <Badge variant="outline">{summary.gender}</Badge>
-                </div>
-              </div>
-            </div>
-
-            <div className="mb-4">
-              <label className="text-sm text-muted-foreground">
-                Description
-              </label>
-              <p className="mt-1 text-sm">{summary.description}</p>
-            </div>
-
-            {/* <div className="flex gap-2">
-              <Button onClick={handleNext} className="flex-1">
-                Continue to HS Code Suggestions
-              </Button>
-
-              {isFromStorage && (
-                <>
-                  <Button variant="outline" onClick={handleReupload}>
-                    <RotateCcw className="h-4 w-4 mr-2" />
-                    Re-upload
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={handleClearData}
-                    className="text-red-600 hover:text-red-700"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Clear Data
-                  </Button>
-                </>
-              )}
-            </div> */}
-
-            <Button onClick={handleNext} className="w-full">
-              Continue to HS Code Suggestions
-            </Button>
-          </CardContent>
-        </Card>
+      {/* Show continue button when file is uploaded successfully, or skip button when no file */}
+      {isUploaded && summary ? (
+        <div className="flex gap-3">
+          <Button onClick={handleNext} className="w-full">
+            Continue to Tech Pack Details
+          </Button>
+        </div>
+      ) : (
+        <div className="flex gap-3">
+          <Button
+            variant="outline"
+            onClick={() =>
+              onNext({
+                materialPercentage: [],
+                fabricType: "knit",
+                garmentType: "",
+                gender: "",
+                description: "",
+                gsm: undefined,
+                countryOfOrigin: "",
+                destinationMarket: "",
+                incoterm: "",
+              })
+            }
+            className="w-full"
+          >
+            Skip Upload - Enter Details Manually
+          </Button>
+        </div>
       )}
     </div>
   );

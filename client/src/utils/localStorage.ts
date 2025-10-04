@@ -39,56 +39,80 @@ class LocalStorageManager {
     console.log(`🧹 Clearing data for steps after step ${updatedStep}`);
 
     switch (updatedStep) {
-      case 1: // Tech pack updated - clear HS code and compliance data
+      case 1: // Upload updated - clear tech pack, HS code and compliance data
         this.clearHSCodeData();
         this.clearHSCodeSuggestions();
         this.clearComplianceData();
         this.saveAppState([], 1); // Reset to step 1
         break;
-      case 2: // HS code updated - clear compliance data only
+      case 2: // Tech pack updated - clear HS code and compliance data only
+        this.clearHSCodeData();
+        this.clearHSCodeSuggestions();
         this.clearComplianceData();
         this.saveAppState([1], 2); // Keep step 1, reset to step 2
         break;
-      case 3: // Compliance updated - nothing to clear after this
-        this.saveAppState([1, 2], 3); // Keep steps 1 and 2
+      case 3: // HS code updated - clear compliance data only
+        this.clearComplianceData();
+        this.saveAppState([1, 2], 3); // Keep steps 1 and 2, reset to step 3
+        break;
+      case 4: // Compliance updated - nothing to clear after this
+        this.saveAppState([1, 2, 3], 4); // Keep steps 1, 2, and 3
         break;
     }
   }
 
   // Save tech pack data and file info with cascading clear
-  saveTechPackData(data: TechPackSummary, file: File): void {
+  saveTechPackData(data: TechPackSummary, file?: File): void {
     try {
-      // Clear all subsequent steps when step 1 data is updated
-      this.clearSubsequentSteps(1);
+      // Check if techPackData has actually changed
+      const existingData = this.getItem<TechPackSummary>(
+        STORAGE_KEYS.TECH_PACK_DATA
+      );
+      const dataChanged =
+        !existingData || JSON.stringify(existingData) !== JSON.stringify(data);
+
+      // Only clear subsequent steps if data actually changed
+      if (dataChanged) {
+        if (file) {
+          this.clearSubsequentSteps(1); // Upload step - clear everything
+        } else {
+          this.clearSubsequentSteps(2); // Tech pack edit - only clear HS codes and compliance
+        }
+      }
 
       localStorage.setItem(STORAGE_KEYS.TECH_PACK_DATA, JSON.stringify(data));
 
-      const fileInfo: FileInfo = {
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        lastModified: file.lastModified,
-      };
+      if (file) {
+        const fileInfo: FileInfo = {
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          lastModified: file.lastModified,
+        };
 
-      // For small files (< 1MB), store base64 data for complete restoration
-      if (file.size < 1024 * 1024) {
-        const reader = new FileReader();
-        reader.onload = () => {
-          fileInfo.dataUrl = reader.result as string;
+        // For small files (< 1MB), store base64 data for complete restoration
+        if (file.size < 1024 * 1024) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            fileInfo.dataUrl = reader.result as string;
+            localStorage.setItem(
+              STORAGE_KEYS.TECH_PACK_FILE_INFO,
+              JSON.stringify(fileInfo)
+            );
+          };
+          reader.readAsDataURL(file);
+        } else {
           localStorage.setItem(
             STORAGE_KEYS.TECH_PACK_FILE_INFO,
             JSON.stringify(fileInfo)
           );
-        };
-        reader.readAsDataURL(file);
-      } else {
-        localStorage.setItem(
-          STORAGE_KEYS.TECH_PACK_FILE_INFO,
-          JSON.stringify(fileInfo)
-        );
+        }
       }
 
-      console.log("💾 Tech pack data saved to localStorage");
+      console.log(
+        "💾 Tech pack data saved to localStorage" +
+          (dataChanged ? " (data changed)" : " (no changes)")
+      );
     } catch (error) {
       console.warn("⚠️ Failed to save tech pack data to localStorage:", error);
     }
