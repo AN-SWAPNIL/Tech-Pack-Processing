@@ -233,6 +233,8 @@ export function UploadStep({
               className="hidden"
               accept=".pdf,.doc,.docx,.xlsx,.xls"
               onChange={handleFileUpload}
+              aria-label="Upload tech pack file"
+              title="Upload tech pack file"
             />
 
             {!file && !fileInfo ? (

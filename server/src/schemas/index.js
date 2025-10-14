@@ -71,3 +71,29 @@ export const errorResponseSchema = Joi.object({
   error: Joi.string().optional(),
   details: Joi.array().optional(),
 });
+
+// Validation schema for compliance data
+export const complianceDataSchema = Joi.object({
+  destination: Joi.string().required(),
+  office: Joi.string().required(),
+  port: Joi.string().required(),
+  udLcNumber: Joi.string().optional().allow(null, ""),
+  btbLcNumber: Joi.string().optional().allow(null, ""),
+  costUsd: Joi.number().min(0).optional(),
+  quantity: Joi.number().integer().min(1).optional(),
+});
+
+// Validation schema for document generation request
+export const documentGenerationRequestSchema = Joi.object({
+  techPackData: techPackSchema.required(),
+  hsCodeData: hsCodeSuggestionSchema.required(),
+  complianceData: complianceDataSchema.required(),
+  orderDetails: Joi.object().optional().default({}),
+});
+
+// Validation schema for template replacement
+export const templateReplacementSchema = Joi.object({
+  templateType: Joi.string()
+    .valid("pi", "ci", "pl", "bl", "compliance")
+    .required(),
+});

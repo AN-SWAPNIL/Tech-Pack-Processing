@@ -13,6 +13,7 @@ import type {
   TechPackSummary,
   HSCodeSuggestion,
   ComplianceData,
+  DocumentGenerationResponse,
 } from "./types";
 
 export default function App() {
@@ -26,6 +27,9 @@ export default function App() {
   const [complianceData, setComplianceData] = useState<ComplianceData | null>(
     null
   );
+  const [generatedDocuments, setGeneratedDocuments] =
+    useState<DocumentGenerationResponse | null>(null);
+  const [isReviewLocked, setIsReviewLocked] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Load data from localStorage on component mount
@@ -36,13 +40,14 @@ export default function App() {
     if (storedData.fileInfo) {
       // Try to recreate file if we have the data
       if (storedData.fileInfo.dataUrl) {
-        localStorageManager.createFileFromStoredInfo(storedData.fileInfo)
-          .then(recreatedFile => {
+        localStorageManager
+          .createFileFromStoredInfo(storedData.fileInfo)
+          .then((recreatedFile) => {
             if (recreatedFile) {
               setUploadedFile(recreatedFile);
             }
           })
-          .catch(error => {
+          .catch((error) => {
             console.warn("Could not recreate file from stored data:", error);
           });
       }
@@ -64,13 +69,30 @@ export default function App() {
       setCompletedSteps((prev) => (prev.includes(4) ? prev : [...prev, 4]));
     }
 
+    if (storedData.generatedDocuments) {
+      setGeneratedDocuments(storedData.generatedDocuments);
+      setCompletedSteps((prev) => (prev.includes(5) ? prev : [...prev, 5]));
+    }
+
+    // Restore review locked state
+    if (storedData.isReviewLocked) {
+      setIsReviewLocked(true);
+      setCompletedSteps((prev) => (prev.includes(6) ? prev : [...prev, 6]));
+    }
+
     // Set current step based on what data we have
     let targetStep = 1;
-    if (storedData.complianceData) {
-      targetStep = 4; // Go to generate step
+    if (storedData.isReviewLocked) {
+      targetStep = 6; // Stay on review step if locked
+    } else if (storedData.generatedDocuments) {
+      targetStep = 6; // Go to review step
+    } else if (storedData.complianceData) {
+      targetStep = 5; // Go to generate step
     } else if (storedData.hsCodeData) {
-      targetStep = 3; // Go to compliance step
+      targetStep = 4; // Go to compliance step
     } else if (storedData.techPackData) {
+      targetStep = 3; // Go to HS code step
+    } else if (storedData.fileInfo) {
       targetStep = 2; // Go to tech pack step
     }
 
@@ -132,9 +154,18 @@ export default function App() {
     setCurrentStep(5);
   };
 
-  const handleGenerateNext = () => {
+  const handleGenerateNext = (documents: DocumentGenerationResponse) => {
+    setGeneratedDocuments(documents);
+    localStorageManager.saveGeneratedDocuments(documents);
     handleStepComplete(5);
     setCurrentStep(6);
+  };
+
+  const handleReviewLock = () => {
+    setIsReviewLocked(true);
+    localStorageManager.saveReviewLocked(true);
+    handleStepComplete(6);
+    console.log("✅ Review locked - configuration finalized");
   };
 
   const handleBack = () => {
@@ -149,6 +180,8 @@ export default function App() {
     setUploadedFile(null);
     setHSCodeData(null);
     setComplianceData(null);
+    setGeneratedDocuments(null);
+    setIsReviewLocked(false);
     setCompletedSteps([]);
     setCurrentStep(1);
   };
@@ -184,6 +217,7 @@ export default function App() {
             {(techPackData ||
               hsCodeData ||
               complianceData ||
+              generatedDocuments ||
               completedSteps.length > 0) && (
               <Button
                 variant="outline"
@@ -233,17 +267,34 @@ export default function App() {
         )}
 
         {currentStep === 4 && (
-          <ComplianceStep onNext={handleComplianceNext} onBack={handleBack} />
+          <ComplianceStep
+            onNext={handleComplianceNext}
+            onBack={handleBack}
+            initialData={complianceData}
+          />
         )}
 
         {currentStep === 5 && (
-          <GenerateStep onNext={handleGenerateNext} onBack={handleBack} />
+          <GenerateStep
+            onNext={handleGenerateNext}
+            onBack={handleBack}
+            techPackData={techPackData}
+            hsCodeData={hsCodeData}
+            complianceData={complianceData}
+            initialDocuments={generatedDocuments}
+          />
         )}
 
         {currentStep === 6 && (
           <ReviewStep
             onBack={handleBack}
             onEdit={(step) => setCurrentStep(step)}
+            onLock={handleReviewLock}
+            techPackData={techPackData}
+            hsCodeData={hsCodeData}
+            complianceData={complianceData}
+            generatedDocuments={generatedDocuments}
+            initialLocked={isReviewLocked}
           />
         )}
       </main>

@@ -3,6 +3,7 @@ import type {
   TechPackSummary,
   HSCodeSuggestion,
   ComplianceData,
+  DocumentGenerationResponse,
 } from "../types";
 
 const STORAGE_KEYS = {
@@ -11,8 +12,10 @@ const STORAGE_KEYS = {
   HS_CODE_DATA: "hscode_data",
   HS_CODE_SUGGESTIONS: "hscode_suggestions",
   COMPLIANCE_DATA: "compliance_data",
+  GENERATED_DOCUMENTS: "generated_documents",
   COMPLETED_STEPS: "completed_steps",
   CURRENT_STEP: "current_step",
+  REVIEW_LOCKED: "review_locked",
 } as const;
 
 export interface FileInfo {
@@ -29,8 +32,10 @@ export interface StoredData {
   hsCodeData: HSCodeSuggestion | null;
   hsCodeSuggestions: HSCodeSuggestion[] | null;
   complianceData: ComplianceData | null;
+  generatedDocuments: DocumentGenerationResponse | null;
   completedSteps: number[];
   currentStep: number;
+  isReviewLocked: boolean;
 }
 
 class LocalStorageManager {
@@ -39,27 +44,32 @@ class LocalStorageManager {
     console.log(`🧹 Clearing data for steps after step ${updatedStep}`);
 
     switch (updatedStep) {
-      case 1: // Upload updated - clear tech pack, HS code and compliance data (but keep file info)
-        // Don't call clearAllData() - it would remove the file info we just saved
-        // Instead, clear only the downstream data
+      case 1: // Upload updated - clear tech pack, HS code, compliance, and documents
         this.clearTechPackData();
         this.clearHSCodeData();
         this.clearHSCodeSuggestions();
         this.clearComplianceData();
+        this.clearGeneratedDocuments();
         this.saveAppState([], 1); // Reset to step 1
         break;
-      case 2: // Tech pack updated - clear HS code and compliance data only
+      case 2: // Tech pack updated - clear HS code, compliance, and documents
         this.clearHSCodeData();
         this.clearHSCodeSuggestions();
         this.clearComplianceData();
+        this.clearGeneratedDocuments();
         this.saveAppState([1], 2); // Keep step 1, reset to step 2
         break;
-      case 3: // HS code updated - clear compliance data only
+      case 3: // HS code updated - clear compliance and documents
         this.clearComplianceData();
+        this.clearGeneratedDocuments();
         this.saveAppState([1, 2], 3); // Keep steps 1 and 2, reset to step 3
         break;
-      case 4: // Compliance updated - nothing to clear after this
+      case 4: // Compliance updated - clear documents only
+        this.clearGeneratedDocuments();
         this.saveAppState([1, 2, 3], 4); // Keep steps 1, 2, and 3
+        break;
+      case 5: // Generate step - nothing to clear after this
+        this.saveAppState([1, 2, 3, 4], 5); // Keep steps 1-4
         break;
     }
   }
@@ -205,6 +215,22 @@ class LocalStorageManager {
     }
   }
 
+  // Save generated documents
+  saveGeneratedDocuments(documents: DocumentGenerationResponse): void {
+    try {
+      localStorage.setItem(
+        STORAGE_KEYS.GENERATED_DOCUMENTS,
+        JSON.stringify(documents)
+      );
+      console.log("💾 Generated documents saved to localStorage");
+    } catch (error) {
+      console.warn(
+        "⚠️ Failed to save generated documents to localStorage:",
+        error
+      );
+    }
+  }
+
   // Save app state
   saveAppState(completedSteps: number[], currentStep: number): void {
     try {
@@ -216,6 +242,36 @@ class LocalStorageManager {
       console.log("💾 App state saved to localStorage");
     } catch (error) {
       console.warn("⚠️ Failed to save app state to localStorage:", error);
+    }
+  }
+
+  // Save review locked state
+  saveReviewLocked(isLocked: boolean): void {
+    try {
+      localStorage.setItem(
+        STORAGE_KEYS.REVIEW_LOCKED,
+        JSON.stringify(isLocked)
+      );
+      console.log(`💾 Review locked state saved: ${isLocked}`);
+    } catch (error) {
+      console.warn(
+        "⚠️ Failed to save review locked state to localStorage:",
+        error
+      );
+    }
+  }
+
+  // Get review locked state
+  getReviewLocked(): boolean {
+    try {
+      const locked = localStorage.getItem(STORAGE_KEYS.REVIEW_LOCKED);
+      return locked ? JSON.parse(locked) : false;
+    } catch (error) {
+      console.warn(
+        "⚠️ Failed to get review locked state from localStorage:",
+        error
+      );
+      return false;
     }
   }
 
@@ -235,18 +291,23 @@ class LocalStorageManager {
       const complianceData = this.getItem<ComplianceData>(
         STORAGE_KEYS.COMPLIANCE_DATA
       );
+      const generatedDocuments = this.getItem<DocumentGenerationResponse>(
+        STORAGE_KEYS.GENERATED_DOCUMENTS
+      );
       const completedSteps =
         this.getItem<number[]>(STORAGE_KEYS.COMPLETED_STEPS) || [];
       const currentStep = parseInt(
         localStorage.getItem(STORAGE_KEYS.CURRENT_STEP) || "1",
         10
       );
+      const isReviewLocked = this.getReviewLocked();
 
       const hasData =
         techPackData ||
         fileInfo ||
         hsCodeData ||
         complianceData ||
+        generatedDocuments ||
         completedSteps.length > 0;
 
       if (hasData) {
@@ -255,8 +316,10 @@ class LocalStorageManager {
           hasFile: !!fileInfo,
           hasHSCode: !!hsCodeData,
           hasCompliance: !!complianceData,
+          hasDocuments: !!generatedDocuments,
           completedSteps,
           currentStep,
+          isReviewLocked,
         });
       }
 
@@ -266,8 +329,10 @@ class LocalStorageManager {
         hsCodeData,
         hsCodeSuggestions,
         complianceData,
+        generatedDocuments,
         completedSteps,
         currentStep,
+        isReviewLocked,
       };
     } catch (error) {
       console.warn("⚠️ Failed to load stored data from localStorage:", error);
@@ -277,8 +342,10 @@ class LocalStorageManager {
         hsCodeData: null,
         hsCodeSuggestions: null,
         complianceData: null,
+        generatedDocuments: null,
         completedSteps: [],
         currentStep: 1,
+        isReviewLocked: false,
       };
     }
   }
@@ -376,6 +443,19 @@ class LocalStorageManager {
     } catch (error) {
       console.warn(
         "⚠️ Failed to clear compliance data from localStorage:",
+        error
+      );
+    }
+  }
+
+  // Clear generated documents only
+  clearGeneratedDocuments(): void {
+    try {
+      localStorage.removeItem(STORAGE_KEYS.GENERATED_DOCUMENTS);
+      console.log("🧹 Generated documents cleared from localStorage");
+    } catch (error) {
+      console.warn(
+        "⚠️ Failed to clear generated documents from localStorage:",
         error
       );
     }

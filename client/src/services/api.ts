@@ -5,6 +5,9 @@ import {
   HSCodeClassificationResponse,
   ComplianceData,
   ApiResponse,
+  DocumentGenerationRequest,
+  DocumentGenerationResponse,
+  DocumentTemplate,
 } from "../types";
 
 // API configuration
@@ -143,6 +146,84 @@ export const api = {
   // Health check
   healthCheck: async (): Promise<ApiResponse<{ status: string }>> => {
     return apiRequest("/health");
+  },
+
+  // Generate export documents (returns JSON data)
+  generateDocuments: async (
+    request: DocumentGenerationRequest
+  ): Promise<ApiResponse<DocumentGenerationResponse>> => {
+    return apiRequest("/techpack/generate-documents", {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
+  },
+
+  // Generate export documents as PDF files (returns base64 encoded PDFs)
+  generateDocumentPDFs: async (
+    request: DocumentGenerationRequest
+  ): Promise<
+    ApiResponse<{
+      pdfs: {
+        purchaseOrder: string;
+        commercialInvoice: string;
+        packingList: string;
+        billOfLading: string;
+        complianceCertificate: string;
+      };
+      metadata: any;
+    }>
+  > => {
+    return apiRequest("/techpack/generate-pdfs", {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
+  },
+
+  // Get available document templates
+  getTemplates: async (): Promise<
+    ApiResponse<{ templates: DocumentTemplate[] }>
+  > => {
+    return apiRequest("/techpack/templates");
+  },
+
+  // Replace a document template
+  replaceTemplate: async (
+    templateType: string,
+    file: File
+  ): Promise<ApiResponse<any>> => {
+    const formData = new FormData();
+    formData.append("template", file);
+    formData.append("templateType", templateType);
+
+    const url = `${API_BASE_URL}/techpack/templates/replace`;
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data: ApiResponse<any> = await response.json();
+
+      if (!response.ok) {
+        throw new ApiError(
+          data.message || "Template replacement failed",
+          response.status,
+          data.details
+        );
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+
+      throw new ApiError(
+        error instanceof Error ? error.message : "Upload error occurred",
+        0
+      );
+    }
   },
 };
 

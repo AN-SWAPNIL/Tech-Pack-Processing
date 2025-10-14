@@ -1,16 +1,30 @@
 import { processFile } from "../services/fileProcessingService.js";
 import { extractTechPackInfo } from "../services/aiService.js";
 import { RAGAgent } from "../services/ragAgent.js";
-import { techPackSchema, hsCodeSuggestionSchema } from "../schemas/index.js";
+import { DocumentGenerator } from "../services/documentGenerator.js";
+import {
+  techPackSchema,
+  hsCodeSuggestionSchema,
+  documentGenerationRequestSchema,
+} from "../schemas/index.js";
 import Joi from "joi";
 
-// Lazy initialization of RAG Agent
+// Lazy initialization of RAG Agent and Document Generator
 let ragAgent = null;
+let documentGenerator = null;
+
 const getRagAgent = () => {
   if (!ragAgent) {
     ragAgent = new RAGAgent();
   }
   return ragAgent;
+};
+
+const getDocumentGenerator = () => {
+  if (!documentGenerator) {
+    documentGenerator = new DocumentGenerator();
+  }
+  return documentGenerator;
 };
 
 export const uploadTechPack = async (req, res) => {
@@ -266,3 +280,191 @@ async function generateMockHSCodeSuggestions(techPackInfo) {
 
   return suggestions;
 }
+
+// Generate export documents
+export const generateDocuments = async (req, res) => {
+  try {
+    console.log("📄 Starting document generation...");
+
+    // Validate request body
+    const { error } = documentGenerationRequestSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid request data",
+        error: error.details[0].message,
+      });
+    }
+
+    const { techPackData, hsCodeData, complianceData, orderDetails } = req.body;
+
+    // Generate documents using AI
+    const result = await getDocumentGenerator().generateDocuments({
+      techPackData,
+      hsCodeData,
+      complianceData,
+      orderDetails: orderDetails || {},
+    });
+
+    console.log("✅ Documents generated successfully");
+
+    res.json({
+      success: true,
+      data: result.documents,
+      message: "Export documents generated successfully",
+    });
+  } catch (error) {
+    console.error("❌ Error generating documents:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to generate documents",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
+    });
+  }
+};
+
+// Generate PDF documents (returns actual PDF files, not JSON)
+export const generateDocumentPDFs = async (req, res) => {
+  try {
+    console.log("📄 Starting PDF document generation...");
+
+    // Validate request body
+    const { error } = documentGenerationRequestSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid request data",
+        error: error.details[0].message,
+      });
+    }
+
+    const { techPackData, hsCodeData, complianceData, orderDetails } = req.body;
+
+    // Generate PDF documents using AI
+    const result = await getDocumentGenerator().generateDocumentPDFs({
+      techPackData,
+      hsCodeData,
+      complianceData,
+      orderDetails: orderDetails || {},
+    });
+
+    console.log("✅ PDF documents generated successfully");
+
+    // Return PDF buffers encoded as base64 for easy transfer
+    const pdfsBase64 = {
+      purchaseOrder: result.pdfs.purchaseOrder.toString("base64"),
+      commercialInvoice: result.pdfs.commercialInvoice.toString("base64"),
+      packingList: result.pdfs.packingList.toString("base64"),
+      billOfLading: result.pdfs.billOfLading.toString("base64"),
+      complianceCertificate:
+        result.pdfs.complianceCertificate.toString("base64"),
+    };
+
+    res.json({
+      success: true,
+      data: {
+        pdfs: pdfsBase64,
+        metadata: result.data,
+      },
+      message: "PDF documents generated successfully",
+    });
+  } catch (error) {
+    console.error("❌ Error generating PDF documents:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to generate PDF documents",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
+    });
+  }
+};
+
+// Get available templates
+export const getTemplates = async (req, res) => {
+  try {
+    const templates = await getDocumentGenerator().getAvailableTemplates();
+
+    res.json({
+      success: true,
+      data: { templates },
+      message: "Templates retrieved successfully",
+    });
+  } catch (error) {
+    console.error("❌ Error getting templates:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to retrieve templates",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
+    });
+  }
+};
+
+// Replace template file
+export const replaceTemplate = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No template file provided",
+      });
+    }
+
+    const { templateType } = req.body;
+
+    if (!templateType) {
+      return res.status(400).json({
+        success: false,
+        message: "Template type is required",
+      });
+    }
+
+    // Validate template type
+    const validTypes = ["pi", "ci", "pl", "bl", "compliance"];
+    if (!validTypes.includes(templateType)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid template type. Must be one of: ${validTypes.join(
+          ", "
+        )}`,
+      });
+    }
+
+    console.log(`📤 Replacing template: ${templateType}`);
+
+    // Replace the template
+    const result = await getDocumentGenerator().replaceTemplate(
+      templateType,
+      req.file.buffer
+    );
+
+    console.log(`✅ Template ${templateType} replaced successfully`);
+
+    res.json({
+      success: true,
+      data: result,
+      message: result.message,
+    });
+  } catch (error) {
+    console.error("❌ Error replacing template:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to replace template",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
+    });
+  }
+};

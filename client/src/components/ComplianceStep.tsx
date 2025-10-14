@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -23,21 +23,55 @@ import {
   MapPin,
   FileText,
   Building,
+  DollarSign,
 } from "lucide-react";
 import type { ComplianceData } from "../types";
 
 interface ComplianceStepProps {
   onNext: (data: ComplianceData) => void;
   onBack: () => void;
+  initialData?: ComplianceData | null;
 }
 
-export function ComplianceStep({ onNext, onBack }: ComplianceStepProps) {
-  const [destination, setDestination] = useState<string>("");
-  const [office, setOffice] = useState<string>("");
-  const [port, setPort] = useState<string>("");
-  const [udLcNumber, setUdLcNumber] = useState<string>("");
-  const [btbLcNumber, setBtbLcNumber] = useState<string>("");
+export function ComplianceStep({
+  onNext,
+  onBack,
+  initialData,
+}: ComplianceStepProps) {
+  const [destination, setDestination] = useState<string>(
+    initialData?.destination ?? ""
+  );
+  const [office, setOffice] = useState<string>(initialData?.office ?? "");
+  const [port, setPort] = useState<string>(initialData?.port ?? "");
+  const [udLcNumber, setUdLcNumber] = useState<string>(
+    initialData?.udLcNumber ?? ""
+  );
+  const [btbLcNumber, setBtbLcNumber] = useState<string>(
+    initialData?.btbLcNumber ?? ""
+  );
+  const [costUsd, setCostUsd] = useState<string>(
+    initialData?.costUsd != null ? initialData.costUsd.toString() : ""
+  );
+  const [quantity, setQuantity] = useState<string>(
+    initialData?.quantity != null ? initialData.quantity.toString() : ""
+  );
   const [isBondedUser] = useState(true); // Mock bonded user status
+
+  useEffect(() => {
+    if (initialData) {
+      setDestination(initialData.destination ?? "");
+      setOffice(initialData.office ?? "");
+      setPort(initialData.port ?? "");
+      setUdLcNumber(initialData.udLcNumber ?? "");
+      setBtbLcNumber(initialData.btbLcNumber ?? "");
+      setCostUsd(
+        initialData.costUsd != null ? initialData.costUsd.toString() : ""
+      );
+      setQuantity(
+        initialData.quantity != null ? initialData.quantity.toString() : ""
+      );
+    }
+  }, [initialData]);
 
   const destinations = [
     { value: "EU", label: "European Union", dutyRate: "12%" },
@@ -86,7 +120,14 @@ export function ComplianceStep({ onNext, onBack }: ComplianceStepProps) {
     ? getDocumentChecklist(destination)
     : [];
 
-  const isFormValid = destination && office && port;
+  const parsedCost = parseFloat(costUsd);
+  const parsedQuantity = parseInt(quantity, 10);
+
+  const isCostValid = costUsd.trim() !== "" && !isNaN(parsedCost) && parsedCost > 0;
+  const isQuantityValid =
+    quantity.trim() !== "" && !isNaN(parsedQuantity) && parsedQuantity > 0;
+
+  const isFormValid = destination && office && port && isCostValid && isQuantityValid;
 
   const handleNext = () => {
     if (isFormValid) {
@@ -96,6 +137,8 @@ export function ComplianceStep({ onNext, onBack }: ComplianceStepProps) {
         port,
         udLcNumber: udLcNumber || undefined,
         btbLcNumber: btbLcNumber || undefined,
+        costUsd: parsedCost,
+        quantity: parsedQuantity,
       });
     }
   };
@@ -202,6 +245,52 @@ export function ComplianceStep({ onNext, onBack }: ComplianceStepProps) {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="h-5 w-5" />
+            Shipment Metrics
+          </CardTitle>
+          <CardDescription>
+            Capture order value and quantity for document generation
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid md:grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="cost-usd">Total Cost (USD)</Label>
+            <Input
+              id="cost-usd"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step="0.01"
+              value={costUsd}
+              onChange={(e) => setCostUsd(e.target.value)}
+              placeholder="Enter total shipment value"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Value declared on commercial invoice
+            </p>
+          </div>
+          <div>
+            <Label htmlFor="quantity">Total Quantity (Units)</Label>
+            <Input
+              id="quantity"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              step="1"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              placeholder="Enter total pieces or sets"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Total units covered in this shipment
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {isBondedUser && (
         <Card>
