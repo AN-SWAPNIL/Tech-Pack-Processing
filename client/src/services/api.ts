@@ -12,7 +12,7 @@ import {
 
 // API configuration
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/api";
 
 // API error class
 class ApiError extends Error {
@@ -148,35 +148,114 @@ export const api = {
     return apiRequest("/health");
   },
 
-  // Generate export documents (returns JSON data)
-  generateDocuments: async (
+  // Generate single document PDF (for progressive generation)
+  generateSingleDocumentPDF: async (
+    documentType:
+      | "purchaseOrder"
+      | "commercialInvoice"
+      | "packingList"
+      | "billOfLading"
+      | "complianceCertificate",
     request: DocumentGenerationRequest
-  ): Promise<ApiResponse<DocumentGenerationResponse>> => {
-    return apiRequest("/techpack/generate-documents", {
+  ): Promise<
+    ApiResponse<{
+      pdf: string;
+      metadata: any;
+      documentType: string;
+    }>
+  > => {
+    // Convert camelCase to kebab-case for API endpoint
+    const documentTypeMap: Record<string, string> = {
+      purchaseOrder: "purchase-order",
+      commercialInvoice: "commercial-invoice",
+      packingList: "packing-list",
+      billOfLading: "bill-of-lading",
+      complianceCertificate: "compliance-certificate",
+    };
+
+    const endpoint = documentTypeMap[documentType];
+
+    console.log(
+      `📤 Sending request to /techpack/generate-document/${endpoint}`
+    );
+    console.log(`📦 Request payload:`, JSON.stringify(request, null, 2));
+
+    return apiRequest(`/techpack/generate-document/${endpoint}`, {
       method: "POST",
       body: JSON.stringify(request),
     });
   },
 
-  // Generate export documents as PDF files (returns base64 encoded PDFs)
-  generateDocumentPDFs: async (
-    request: DocumentGenerationRequest
-  ): Promise<
-    ApiResponse<{
-      pdfs: {
-        purchaseOrder: string;
-        commercialInvoice: string;
-        packingList: string;
-        billOfLading: string;
-        complianceCertificate: string;
-      };
-      metadata: any;
-    }>
-  > => {
-    return apiRequest("/techpack/generate-pdfs", {
-      method: "POST",
-      body: JSON.stringify(request),
-    });
+  // Generate all documents progressively (sequential calls with progress updates)
+  generateDocumentsProgressively: async (
+    request: DocumentGenerationRequest,
+    onProgress?: (documentType: string, percentage: number) => void,
+    onDocumentComplete?: (
+      pdfs: Record<string, string>,
+      metadata: Record<string, any>
+    ) => void
+  ): Promise<{
+    pdfs: {
+      purchaseOrder: string;
+      commercialInvoice: string;
+      packingList: string;
+      billOfLading: string;
+      complianceCertificate: string;
+    };
+    metadata: Record<string, any>;
+  }> => {
+    const documentTypes: Array<
+      | "purchaseOrder"
+      | "commercialInvoice"
+      | "packingList"
+      | "billOfLading"
+      | "complianceCertificate"
+    > = [
+      "purchaseOrder",
+      "commercialInvoice",
+      "packingList",
+      "billOfLading",
+      "complianceCertificate",
+    ];
+
+    const pdfs: Record<string, string> = {};
+    const metadata: Record<string, any> = {};
+
+    for (let i = 0; i < documentTypes.length; i++) {
+      const documentType = documentTypes[i];
+      const percentage = Math.round(((i + 1) / documentTypes.length) * 100);
+
+      // Notify progress before generating
+      if (onProgress) {
+        onProgress(documentType, percentage);
+      }
+
+      // Generate single document
+      const response = await api.generateSingleDocumentPDF(
+        documentType,
+        request
+      );
+
+      if (!response.success || !response.data) {
+        throw new Error(
+          `Failed to generate ${documentType}: ${response.message}`
+        );
+      }
+
+      // Store result
+      pdfs[documentType] = response.data.pdf;
+      metadata[documentType] = response.data.metadata;
+
+      // Notify with partial results after each document
+      if (onDocumentComplete) {
+        onDocumentComplete({ ...pdfs }, { ...metadata });
+      }
+    }
+
+    return {
+      pdfs: pdfs as any,
+      metadata,
+    };
   },
 
   // Get available document templates

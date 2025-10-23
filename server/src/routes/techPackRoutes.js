@@ -9,8 +9,7 @@ import {
   uploadTechPack,
   processTechPack,
   classifyHSCode,
-  generateDocuments,
-  generateDocumentPDFs,
+  generateSingleDocumentPDF,
   getTemplates,
   replaceTemplate,
 } from "../controllers/techPackController.js";
@@ -43,11 +42,31 @@ router.post(
 // POST /api/techpack/hscode - Classify HS code from tech pack information
 router.post("/hscode", validateTechPack, classifyHSCode);
 
-// POST /api/techpack/generate-documents - Generate export documents (JSON data)
-router.post("/generate-documents", generateDocuments);
+// Individual document generation endpoints (for progressive generation)
+// POST /api/techpack/generate-document/purchase-order
+router.post("/generate-document/purchase-order", (req, res) =>
+  generateSingleDocumentPDF(req, res, "purchaseOrder")
+);
 
-// POST /api/techpack/generate-pdfs - Generate export documents (actual PDF files)
-router.post("/generate-pdfs", generateDocumentPDFs);
+// POST /api/techpack/generate-document/commercial-invoice
+router.post("/generate-document/commercial-invoice", (req, res) =>
+  generateSingleDocumentPDF(req, res, "commercialInvoice")
+);
+
+// POST /api/techpack/generate-document/packing-list
+router.post("/generate-document/packing-list", (req, res) =>
+  generateSingleDocumentPDF(req, res, "packingList")
+);
+
+// POST /api/techpack/generate-document/bill-of-lading
+router.post("/generate-document/bill-of-lading", (req, res) =>
+  generateSingleDocumentPDF(req, res, "billOfLading")
+);
+
+// POST /api/techpack/generate-document/compliance-certificate
+router.post("/generate-document/compliance-certificate", (req, res) =>
+  generateSingleDocumentPDF(req, res, "complianceCertificate")
+);
 
 // GET /api/techpack/templates - Get available document templates
 router.get("/templates", getTemplates);

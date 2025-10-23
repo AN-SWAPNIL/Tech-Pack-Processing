@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Bill of Lading</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #ffffff;
+        }
+        .container {
+            width: 850px;
+            margin: 40px;
+            padding: 20px;
+        }
+        .header {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .sub-header {
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+        .bol-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid black;
+        }
+        .bol-table td {
+            border: 1px solid black;
+            padding: 8px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" style="width: 850px; margin: 40px; padding: 20px; font-family: Arial, sans-serif;">
+        <div class="header" style="font-size: 28px; font-weight: bold; margin-bottom: 20px;">
+            BILL OF LADING (B/L)
+        </div>
+        <div class="sub-header" style="font-size: 16px; margin-bottom: 20px;">
+            <span style="font-weight: bold;">Order ID:</span> O0016 — <span style="font-weight: bold;">PO:</span> PO30719<br>
+            Port of Loading: Mongla | Destination: Los Angeles
+        </div>
+        <table class="bol-table" style="width: 100%; border-collapse: collapse; border: 1px solid black;">
+            <tbody>
+                <tr>
+                    <td style="border: 1px solid black; padding: 8px; font-size: 16px; width: 25%;">B/L No</td>
+                    <td style="border: 1px solid black; padding: 8px; font-size: 16px;">BL838726</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid black; padding: 8px; font-size: 16px;">Carrier</td>
+                    <td style="border: 1px solid black; padding: 8px; font-size: 16px;">Hapag-Lloyd</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid black; padding: 8px; font-size: 16px;">Container No</td>
+                    <td style="border: 1px solid black; padding: 8px; font-size: 16px;">CONT14062</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid black; padding: 8px; font-size: 16px;">ETD</td>
+                    <td style="border: 1px solid black; padding: 8px; font-size: 16px;">2026-01-26</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid black; padding: 8px; font-size: 16px;">ETA</td>
+                    <td style="border: 1px solid black; padding: 8px; font-size: 16px;">2026-02-17</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid black; padding: 8px; font-size: 16px;">Incoterm</td>
+                    <td style="border: 1px solid black; padding: 8px; font-size: 16px;">FOB</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

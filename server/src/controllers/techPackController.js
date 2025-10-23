@@ -281,103 +281,124 @@ async function generateMockHSCodeSuggestions(techPackInfo) {
   return suggestions;
 }
 
-// Generate export documents
-export const generateDocuments = async (req, res) => {
+// Generate single document PDF (for progressive generation)
+export const generateSingleDocumentPDF = async (req, res, documentType) => {
   try {
-    console.log("📄 Starting document generation...");
+    console.log(`📄 Generating single document: ${documentType}`);
 
     // Validate request body
-    const { error } = documentGenerationRequestSchema.validate(req.body);
+    const { error, value } = documentGenerationRequestSchema.validate(
+      req.body,
+      {
+        abortEarly: false,
+      }
+    );
+
     if (error) {
       return res.status(400).json({
         success: false,
-        message: "Invalid request data",
-        error: error.details[0].message,
+        message: "Validation failed",
+        errors: error.details.map((detail) => ({
+          field: detail.path.join("."),
+          message: detail.message,
+        })),
       });
     }
 
-    const { techPackData, hsCodeData, complianceData, orderDetails } = req.body;
+    const { techPackData, hsCodeData, complianceData, orderDetails } = value;
 
-    // Generate documents using AI
-    const result = await getDocumentGenerator().generateDocuments({
-      techPackData,
-      hsCodeData,
-      complianceData,
-      orderDetails: orderDetails || {},
-    });
+    // Debug: Log received data
+    console.log(
+      `📊 Received techPackData:`,
+      JSON.stringify(techPackData, null, 2)
+    );
+    console.log(`📊 Received hsCodeData:`, JSON.stringify(hsCodeData, null, 2));
+    console.log(
+      `📊 Received complianceData:`,
+      JSON.stringify(complianceData, null, 2)
+    );
+    console.log(
+      `📊 Received orderDetails:`,
+      JSON.stringify(orderDetails, null, 2)
+    );
 
-    console.log("✅ Documents generated successfully");
-
-    res.json({
-      success: true,
-      data: result.documents,
-      message: "Export documents generated successfully",
-    });
-  } catch (error) {
-    console.error("❌ Error generating documents:", error);
-
-    res.status(500).json({
-      success: false,
-      message: "Failed to generate documents",
-      error:
-        process.env.NODE_ENV === "development"
-          ? error.message
-          : "Internal server error",
-    });
-  }
-};
-
-// Generate PDF documents (returns actual PDF files, not JSON)
-export const generateDocumentPDFs = async (req, res) => {
-  try {
-    console.log("📄 Starting PDF document generation...");
-
-    // Validate request body
-    const { error } = documentGenerationRequestSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid request data",
-        error: error.details[0].message,
-      });
-    }
-
-    const { techPackData, hsCodeData, complianceData, orderDetails } = req.body;
-
-    // Generate PDF documents using AI
-    const result = await getDocumentGenerator().generateDocumentPDFs({
-      techPackData,
-      hsCodeData,
-      complianceData,
-      orderDetails: orderDetails || {},
-    });
-
-    console.log("✅ PDF documents generated successfully");
-
-    // Return PDF buffers encoded as base64 for easy transfer
-    const pdfsBase64 = {
-      purchaseOrder: result.pdfs.purchaseOrder.toString("base64"),
-      commercialInvoice: result.pdfs.commercialInvoice.toString("base64"),
-      packingList: result.pdfs.packingList.toString("base64"),
-      billOfLading: result.pdfs.billOfLading.toString("base64"),
-      complianceCertificate:
-        result.pdfs.complianceCertificate.toString("base64"),
+    // Map document type names to API format (camelCase to kebab-case)
+    const documentTypeMap = {
+      purchaseOrder: "purchase-order",
+      commercialInvoice: "commercial-invoice",
+      packingList: "packing-list",
+      billOfLading: "bill-of-lading",
+      complianceCertificate: "compliance-certificate",
     };
 
-    res.json({
+    const apiDocumentType = documentTypeMap[documentType] || documentType;
+
+    // Combine all data into single object for AI
+    const combinedData = {
+      ...techPackData,
+      ...hsCodeData,
+      ...complianceData,
+      ...(orderDetails || {}),
+      id: techPackData?.id || "unknown",
+    };
+
+    // Debug: Log combined data
+    console.log(
+      `📊 Combined data being sent:`,
+      JSON.stringify(combinedData, null, 2)
+    );
+
+    // Generate single document PDF using new Vision AI + Puppeteer approach
+    const result = await getDocumentGenerator().generateDocumentWithVision(
+      apiDocumentType,
+      combinedData
+    );
+
+    console.log(`✅ ${documentType} PDF generated successfully`);
+
+    // Extract values immediately to avoid Buffer contamination in JSON serialization
+    const pdfBuffer = result.pdfBuffer;
+    const base64String = result.base64;
+    const metadata = {
+      documentType: result.documentType,
+      generatedAt: result.generatedAt,
+      size: pdfBuffer.length,
+    };
+
+    // If client requested raw PDF (via query ?as=raw or Accept header), send Buffer directly
+    const acceptHeader = req.get("Accept") || "";
+    const asRaw =
+      (req.query && req.query.as === "raw") ||
+      acceptHeader.includes("application/pdf");
+
+    if (asRaw) {
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${documentType}.pdf"`
+      );
+      return res.send(pdfBuffer);
+    }
+
+    // Default JSON response: send ONLY the base64 string (no Buffer in response object)
+    // Create a clean response object with NO Buffer references
+    const responseData = {
       success: true,
       data: {
-        pdfs: pdfsBase64,
-        metadata: result.data,
+        pdf: base64String, // ONLY the string, never the Buffer
+        metadata: metadata,
+        documentType,
       },
-      message: "PDF documents generated successfully",
-    });
+      message: `${documentType} PDF generated successfully`,
+    };
+
+    res.json(responseData);
   } catch (error) {
-    console.error("❌ Error generating PDF documents:", error);
+    console.error(`❌ Error generating ${documentType} PDF:`, error);
 
     res.status(500).json({
       success: false,
-      message: "Failed to generate PDF documents",
+      message: `Failed to generate ${documentType} PDF`,
       error:
         process.env.NODE_ENV === "development"
           ? error.message

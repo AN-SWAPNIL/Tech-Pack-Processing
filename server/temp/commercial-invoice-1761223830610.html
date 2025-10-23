@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Commercial Invoice</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 11pt;
+            color: #000000;
+        }
+        .container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .header {
+            margin-bottom: 30px;
+        }
+        .header-info {
+            line-height: 1.5;
+            margin-bottom: 25px;
+        }
+        .invoice-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #a9a9a9;
+        }
+        .invoice-table td {
+            border: 1px solid #a9a9a9;
+            padding: 6px 8px;
+            vertical-align: top;
+        }
+        .key-cell {
+            background-color: #f0f0f0;
+            width: 15%;
+        }
+        .value-cell {
+            width: 35%;
+        }
+        .declaration {
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" style="font-family: Arial, sans-serif; font-size: 11pt; color: #000000; width: 100%; max-width: 800px; margin: 0 auto;">
+        <div class="header" style="margin-bottom: 30px;">
+            <h1 style="font-size: 18pt; font-weight: bold; margin: 0; padding: 0;">COMMERCIAL INVOICE</h1>
+        </div>
+
+        <div class="header-info" style="line-height: 1.5; margin-bottom: 25px;">
+            <div style="margin: 0; padding: 0;"><b style="font-weight: bold;">Buyer:</b> Private Co. 4 (USA)</div>
+            <div style="margin: 0; padding: 0;">Contact: Taylor Brown - contact4@buyer4.com</div>
+            <div style="margin: 0; padding: 0;">Segment: Private Label</div>
+            <div style="margin: 0; padding: 0;"><b style="font-weight: bold;">Factory:</b> Factory 1 Ltd., Narayanganj</div>
+            <div style="margin: 0; padding: 0;">Compliance: OEKO-TEX,RCS</div>
+            <div style="margin: 0; padding: 0;">DPP: Ready</div>
+        </div>
+
+        <table class="invoice-table" style="width: 100%; border-collapse: collapse; border: 1px solid #a9a9a9;">
+            <tbody>
+                <tr>
+                    <td class="key-cell" style="background-color: #f0f0f0; border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 15%;">PO No</td>
+                    <td class="value-cell" style="border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 35%;">PO30719</td>
+                    <td class="key-cell" style="background-color: #f0f0f0; border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 15%;">Order ID</td>
+                    <td class="value-cell" style="border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 35%;">unknown</td>
+                </tr>
+                <tr>
+                    <td class="key-cell" style="background-color: #f0f0f0; border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 15%;">Product</td>
+                    <td class="value-cell" style="border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 35%;">hoodie, knit</td>
+                    <td class="key-cell" style="background-color: #f0f0f0; border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 15%;">HS Code</td>
+                    <td class="value-cell" style="border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 35%;">6102.20.00</td>
+                </tr>
+                <tr>
+                    <td class="key-cell" style="background-color: #f0f0f0; border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 15%;">Style Code</td>
+                    <td class="value-cell" style="border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 35%;">ST-8202</td>
+                    <td class="key-cell" style="background-color: #f0f0f0; border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 15%;">Order Qty</td>
+                    <td class="value-cell" style="border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 35%;">44849 pcs</td>
+                </tr>
+                <tr>
+                    <td class="key-cell" style="background-color: #f0f0f0; border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 15%;">FOB USD/pc</td>
+                    <td class="value-cell" style="border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 35%;">10.74</td>
+                    <td class="key-cell" style="background-color: #f0f0f0; border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 15%;">Total FOB</td>
+                    <td class="value-cell" style="border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 35%;">481816.00 USD</td>
+                </tr>
+                <tr>
+                    <td class="key-cell" style="background-color: #f0f0f0; border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 15%;">Ex-Factory</td>
+                    <td class="value-cell" style="border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 35%;">2026-01-23</td>
+                    <td class="key-cell" style="background-color: #f0f0f0; border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 15%;">Dest Port</td>
+                    <td class="value-cell" style="border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 35%;">Benapole Land Port</td>
+                </tr>
+                <tr>
+                    <td class="key-cell" style="background-color: #f0f0f0; border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 15%;">Payment Terms</td>
+                    <td class="value-cell" style="border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 35%;">LC at sight</td>
+                    <td class="key-cell" style="background-color: #f0f0f0; border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 15%;">Incoterm</td>
+                    <td class="value-cell" style="border: 1px solid #a9a9a9; padding: 6px 8px; vertical-align: top; width: 35%;">DAP</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="declaration" style="margin-top: 30px;">
+            Declaration: We hereby certify that the goods are manufactured in Portugal and comply with buyer requirements.
+        </div>
+    </div>
+</body>
+</html>

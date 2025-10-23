@@ -162,47 +162,98 @@ export function GenerateStep({
     setError(null);
     setGenerationProgress(0);
 
+    // Reset all document statuses to pending
+    setDocuments((prev) =>
+      prev.map((doc) => ({ ...doc, status: "pending" as const }))
+    );
+
     try {
-      console.log("📄 Generating PDF documents with AI...");
+      console.log("📄 Generating PDF documents progressively with AI...");
 
-      // Simulate progress
-      const progressInterval = setInterval(() => {
-        setGenerationProgress((prev) => Math.min(prev + 10, 90));
-      }, 300);
+      // Progress callback for each document
+      const handleProgress = (documentType: string, percentage: number) => {
+        setGenerationProgress(percentage);
 
-      // Call API to generate PDF documents
-      const response = await api.generateDocumentPDFs({
-        techPackData,
-        hsCodeData,
-        complianceData,
-        orderDetails: {},
-      });
-
-      clearInterval(progressInterval);
-
-      if (response.success && response.data) {
-        setGenerationProgress(100);
-
-        // Convert response to proper format
-        const documentData: DocumentGenerationResponse = {
-          purchaseOrder: response.data.metadata.purchaseOrder,
-          commercialInvoice: response.data.metadata.commercialInvoice,
-          packingList: response.data.metadata.packingList,
-          billOfLading: response.data.metadata.billOfLading,
-          complianceCertificate: response.data.metadata.complianceCertificate,
-          pdfs: response.data.pdfs,
+        // Map documentType to document ID
+        const docIdMap: Record<string, string> = {
+          purchaseOrder: "pi",
+          commercialInvoice: "ci",
+          packingList: "pl",
+          billOfLading: "bl",
+          complianceCertificate: "compliance",
         };
 
-        setGeneratedDocuments(documentData);
-        updateDocumentsStatus(documentData);
+        const docId = docIdMap[documentType];
 
-        // Save to localStorage (both metadata and PDFs)
-        localStorageManager.saveGeneratedDocuments(documentData);
+        // Update document status
+        setDocuments((prev) =>
+          prev.map((doc) => {
+            if (doc.id === docId) {
+              return { ...doc, status: "generating" as const };
+            }
+            // Mark previous documents as ready
+            const docIndex = prev.findIndex((d) => d.id === docId);
+            const currentIndex = prev.findIndex((d) => d.id === doc.id);
+            if (currentIndex < docIndex) {
+              return { ...doc, status: "ready" as const };
+            }
+            return doc;
+          })
+        );
 
-        console.log("✅ PDF documents generated successfully");
-      } else {
-        throw new Error(response.message || "Failed to generate PDF documents");
-      }
+        console.log(`📄 Generating ${documentType}... ${percentage}%`);
+      };
+
+      // Call API to generate PDF documents progressively
+      const result = await api.generateDocumentsProgressively(
+        {
+          techPackData,
+          hsCodeData,
+          complianceData,
+          orderDetails: {},
+        },
+        handleProgress,
+        // Update state immediately as each document completes
+        (partialPdfs, partialMetadata) => {
+          console.log("🔄 Document completed, updating state...");
+          console.log("   - Partial PDFs keys:", Object.keys(partialPdfs));
+
+          const documentData: DocumentGenerationResponse = {
+            purchaseOrder: partialMetadata.purchaseOrder || null,
+            commercialInvoice: partialMetadata.commercialInvoice || null,
+            packingList: partialMetadata.packingList || null,
+            billOfLading: partialMetadata.billOfLading || null,
+            complianceCertificate:
+              partialMetadata.complianceCertificate || null,
+            pdfs: partialPdfs as any,
+          };
+
+          setGeneratedDocuments(documentData);
+        }
+      );
+
+      // Mark all documents as ready
+      setDocuments((prev) =>
+        prev.map((doc) => ({ ...doc, status: "ready" as const }))
+      );
+
+      // Convert response to proper format
+      const documentData: DocumentGenerationResponse = {
+        purchaseOrder: result.metadata.purchaseOrder,
+        commercialInvoice: result.metadata.commercialInvoice,
+        packingList: result.metadata.packingList,
+        billOfLading: result.metadata.billOfLading,
+        complianceCertificate: result.metadata.complianceCertificate,
+        pdfs: result.pdfs,
+      };
+
+      setGeneratedDocuments(documentData);
+      updateDocumentsStatus(documentData);
+
+      // Save to localStorage (both metadata and PDFs)
+      localStorageManager.saveGeneratedDocuments(documentData);
+
+      console.log("✅ PDF documents generated successfully");
     } catch (error) {
       console.error("❌ Error generating PDF documents:", error);
       setError(
@@ -211,6 +262,10 @@ export function GenerateStep({
           : "Failed to generate PDF documents"
       );
       setGenerationProgress(0);
+      // Reset all document statuses to pending on error
+      setDocuments((prev) =>
+        prev.map((doc) => ({ ...doc, status: "pending" as const }))
+      );
     } finally {
       setIsGenerating(false);
     }
@@ -237,28 +292,50 @@ export function GenerateStep({
     const pdfBase64 = docKey && generatedDocuments?.pdfs?.[docKey];
 
     if (pdfBase64) {
-      // Download as PDF
-      const byteCharacters = atob(pdfBase64);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      try {
+        // Check if it's an array (byte array) or a string (base64)
+        let base64String: string;
+
+        if (Array.isArray(pdfBase64)) {
+          // If it's an array of bytes, convert to base64
+          const uint8Array = new Uint8Array(pdfBase64);
+          base64String = btoa(String.fromCharCode(...uint8Array));
+        } else if (typeof pdfBase64 === "string") {
+          // If it's already a string, use it directly
+          base64String = pdfBase64;
+        } else {
+          throw new Error("Invalid PDF data format");
+        }
+
+        // Download as PDF
+        const byteCharacters = atob(base64String);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const pdfBlob = new Blob([byteArray], { type: "application/pdf" });
+        const url = URL.createObjectURL(pdfBlob);
+
+        const element = document.createElement("a");
+        element.setAttribute("href", url);
+        element.setAttribute(
+          "download",
+          `${docName.toLowerCase().replace(/\s+/g, "_")}.pdf`
+        );
+        element.style.display = "none";
+        document.body.appendChild(element);
+        element.click();
+        document.body.removeChild(element);
+
+        URL.revokeObjectURL(url);
+        console.log(`✅ Downloaded ${docName} successfully`);
+      } catch (error) {
+        console.error(`❌ Error downloading ${docName}:`, error);
+        alert(
+          `Failed to download ${docName}. Please try regenerating the documents.`
+        );
       }
-      const byteArray = new Uint8Array(byteNumbers);
-      const pdfBlob = new Blob([byteArray], { type: "application/pdf" });
-      const url = URL.createObjectURL(pdfBlob);
-
-      const element = document.createElement("a");
-      element.setAttribute("href", url);
-      element.setAttribute(
-        "download",
-        `${docName.toLowerCase().replace(/\s+/g, "_")}.pdf`
-      );
-      element.style.display = "none";
-      document.body.appendChild(element);
-      element.click();
-      document.body.removeChild(element);
-
-      URL.revokeObjectURL(url);
     } else {
       // Fallback: Download as JSON
       const dataStr = JSON.stringify(docData, null, 2);
